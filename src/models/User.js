@@ -5,26 +5,43 @@ class User {
     // שיטה ליצירת משתמש חדש (בדרך כלל לאחר רישום דרך Firebase)
     static async create(userData) {
         const { firebase_uid, name, email, role } = userData;
+        // הוספנו created_at כאן, מכיוון שזה שדה בסכמה 
+        const created_at = new Date(); 
         const sql = `
-            INSERT INTO users (firebase_uid, name, email, role)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (firebase_uid, name, email, role, created_at)
+            VALUES (?, ?, ?, ?, ?)
         `;
-        const values = [firebase_uid, name, email, role || 'user']; // Default role is 'user'
-        const [result] = await db.execute(sql, values);
-        return { firebase_uid, ...userData };
+        const values = [firebase_uid, name, email, role || 'user', created_at]; // Default role is 'user'
+        try {
+            const [result] = await db.execute(sql, values);
+            // נחזיר את האובייקט המלא שנוצר, כולל created_at
+            return { firebase_uid, name, email, role: role || 'user', created_at: created_at.toISOString() };
+        } catch (error) {
+            // טיפול בשגיאת כפילות (אם firebase_uid הוא UNIQUE KEY)
+            if (error.code === 'ER_DUP_ENTRY') {
+                throw new Error('User with this email or UID already exists');
+            }
+            throw error;
+        }
     }
 
-    // שיטה לקבלת משתמש לפי firebase_uid (מזהה Firebase)
-    static async findByFirebaseUid(firebaseUid) {
-        const sql = `SELECT * FROM users WHERE firebase_uid = ?`;
+    /**
+     * שיטה לקבלת משתמש לפי firebase_uid (מזהה Firebase).
+     * שינינו את השם מ-findByFirebaseUid ל-getById כדי להתאים לבקר.
+     * @param {string} firebaseUid - מזהה Firebase של המשתמש.
+     * @returns {Promise<object|null>} - אובייקט המשתמש או null אם לא נמצא.
+     */
+    static async getById(firebaseUid) { // שונה מ-findByFirebaseUid
+        const sql = `SELECT firebase_uid, name, email, role, created_at FROM users WHERE firebase_uid = ?`;
         const [rows] = await db.execute(sql, [firebaseUid]);
-        return rows[0];
+        if (rows[0]) {
+            return {
+                ...rows[0],
+                created_at: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null // לוודא פורמט עקבי
+            };
+        }
+        return null;
     }
-
-    // שיטה לקבלת משתמש לפי ID (אם תשתמש/י ב-ID אוטו-אינקרמנטלי בנוסף ל-Firebase UID)
-    // בהתבסס על הסכמה, firebase_uid הוא ה-PK, אז findByFirebaseUid הוא המרכזי.
-    // אם היית בוחר/ת ב-id אוטו-אינקרמנטלי כ-PK, היית צריך/ה לשנות את זה.
-    // כרגע, נשתמש ב-findByFirebaseUid כשיטה העיקרית לזיהוי.
 
     // שיטה לעדכון פרטי משתמש
     static async update(firebaseUid, userData) {
@@ -32,6 +49,8 @@ class User {
         const values = [];
         for (const key in userData) {
             if (userData.hasOwnProperty(key)) {
+                // לא נאפשר לעדכן את firebase_uid דרך פונקציית עדכון זו
+                if (key === 'firebase_uid') continue; 
                 fields.push(`${key} = ?`);
                 values.push(userData[key]);
             }
@@ -53,9 +72,13 @@ class User {
 
     // שיטה לקבלת כל המשתמשים (לשימוש אדמין)
     static async getAll() {
-        const sql = `SELECT * FROM users ORDER BY created_at DESC`;
+        const sql = `SELECT firebase_uid, name, email, role, created_at FROM users ORDER BY created_at DESC`;
         const [rows] = await db.execute(sql);
-        return rows;
+        // וודא/י ש-created_at מומר לפורמט ISO String
+        return rows.map(row => ({
+            ...row,
+            created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+        }));
     }
 }
 

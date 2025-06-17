@@ -39,18 +39,20 @@ CREATE TABLE IF NOT EXISTS locations (
 );
 
 -- --- Table: posts ---
--- References users and locations.
+-- References users, categories (NEW), and locations.
 CREATE TABLE IF NOT EXISTS posts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
     images JSON,
     user_id VARCHAR(255) NOT NULL,
+    category_id INT, -- **ADDED THIS COLUMN**
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     location_id INT,
     like_count INT DEFAULT 0,
     comment_count INT DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE, -- **ADDED THIS FOREIGN KEY**
     FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -102,6 +104,10 @@ CREATE TABLE IF NOT EXISTS reports (
 
 -- --- Add Foreign Key Constraints to locations table ---
 -- These must run AFTER 'categories' and 'users' tables are guaranteed to exist.
+-- If these were already added as part of the CREATE TABLE, you might get an error.
+-- It's usually better to define them directly in CREATE TABLE if dependencies are clear,
+-- or use ALTER TABLE *after* all tables are created in a migration script.
+-- Given your previous structure, keeping them as ALTER TABLE here.
 ALTER TABLE locations
 ADD CONSTRAINT fk_location_category
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -117,4 +123,4 @@ INSERT INTO categories (name, type) VALUES
 ('Mikvah', 'location'),
 ('Community Event', 'post'),
 ('News', 'post')
-ON DUPLICATE KEY UPDATE name=name;
+ON DUPLICATE KEY UPDATE name=name; -- Prevents errors if these already exist
