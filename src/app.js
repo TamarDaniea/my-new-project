@@ -15,18 +15,16 @@ const app = express();
 app.use(cors()); // Enable CORS
 app.use(express.json()); // Parse JSON request bodies
 
-// Connect to database
 connectToDatabase();
 
-// Basic route for testing
 app.get('/', (req, res) => {
     res.send('Shalom Platform Backend is running!');
 });
 
 // Routes
+app.use('/api/users', fakeAuth,usersRouter);
 app.use('/api/locations', fakeAuth, locationsRouter);
-app.use('/api/locations', locationsRouter); // Use the locations router for /api/locations
-app.use('/api/users', usersRouter);
+app.use('/api/locations', locationsRouter); 
 app.use('/api/posts', postsRouter);
 app.use('/api/comments', commentsRouter);
 app.use('/api/categories', categoriesRouter);

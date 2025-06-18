@@ -2,16 +2,26 @@
 const express = require('express');
 const router = express.Router();
 const usersController = require('../controllers/usersController');
+const fakeAuth = require('../middlewares/fakeAuth');
 
-// GET all users (Admin only route, requires auth middleware)
+
+router.use((req, res, next) => {
+    next();
+});
+
+// ✅ קבלת כל המשתמשים (לשימוש אדמין)
 router.get('/', usersController.getAllUsers);
-// POST create a new user (usually called by auth system after Firebase registration)
+
+// ✅ יצירת משתמש חדש
 router.post('/', usersController.createUser);
-// GET user profile by firebase_uid
+
+// ✅ קבלת משתמש לפי firebase_uid
 router.get('/:firebaseUid', usersController.getUserProfile);
-// PUT update user profile by firebase_uid
+
+// ✅ עדכון פרופיל לפי firebase_uid (שימוש פנימי או אדמין)
 router.put('/:firebaseUid', usersController.updateUserProfile);
-// DELETE user by firebase_uid (Admin only route)
+
+// ✅ מחיקת משתמש לפי firebase_uid
 router.delete('/:firebaseUid', usersController.deleteUser);
 
 module.exports = router;

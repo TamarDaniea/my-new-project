@@ -124,3 +124,6 @@ INSERT INTO categories (name, type) VALUES
 ('Community Event', 'post'),
 ('News', 'post')
 ON DUPLICATE KEY UPDATE name=name; -- Prevents errors if these already exist
+
+ALTER TABLE users
+ADD COLUMN city VARCHAR(255);
