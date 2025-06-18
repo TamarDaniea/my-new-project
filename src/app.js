@@ -8,6 +8,7 @@ const usersRouter = require('./routes/users');
 const postsRouter = require('./routes/posts');
 const commentsRouter = require('./routes/comments');
 const categoriesRouter = require('./routes/categories');
+const fakeAuth = require('./middlewares/fakeAuth');
 const app = express();
 
 // Middleware
@@ -23,6 +24,7 @@ app.get('/', (req, res) => {
 });
 
 // Routes
+app.use('/api/locations', fakeAuth, locationsRouter);
 app.use('/api/locations', locationsRouter); // Use the locations router for /api/locations
 app.use('/api/users', usersRouter);
 app.use('/api/posts', postsRouter);

@@ -2,6 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const locationsController = require('../controllers/locationsController');
+//  const authenticate = require('../middlewares/auth');
+const fakeAuth = require('../middlewares/fakeAuth');
 
 // GET all locations
 router.get('/', locationsController.getAllLocations);
@@ -18,5 +20,6 @@ router.delete('/:id', locationsController.deleteLocation);
 router.post('/:locationId/like', locationsController.addLikeToLocation);
 // DELETE remove like from location
 router.delete('/:locationId/like', locationsController.removeLikeFromLocation);
+router.post('/', fakeAuth, locationsController.createLocation);
 
 module.exports = router;

@@ -18,11 +18,29 @@ const locationsController = {
     createLocation: async (req, res) => {
         try {
             const locationData = req.body;
-            // הוספת user_id (מזהה משתמש) מהטוקן המאומת אם קיים middleware אימות
-            // נניח ש-req.user.firebase_uid זמין אם משתמש מאומת.
-            // אם אין middleware אימות כרגע, ייתכן שתצטרכי להעביר user_id ב-body לצורך בדיקה.
-            locationData.user_id = req.user ? req.user.firebase_uid : 'test_uid'; // TODO: replace 'test_uid' with actual authenticated user ID
 
+            // ודא שיש משתמש
+            if (!req.user || !req.user.firebase_uid) {
+                return res.status(401).json({ message: 'Unauthorized: user not authenticated' });
+            }
+
+            // הוסף את מזהה המשתמש למידע של המקום
+            locationData.user_id = req.user.firebase_uid;
+
+            // בדיקה על שדות חובה
+            const { name, lat, lng, category_id } = locationData;
+            if (!name || !lat || !lng || !category_id) {
+                return res.status(400).json({ message: 'Missing required fields: name, lat, lng, category_id' });
+            }
+
+            // ודא שהקטגוריה קיימת במסד
+            const db = require('../config/db');
+            const [rows] = await db.query('SELECT id FROM categories WHERE id = ?', [category_id]);
+            if (rows.length === 0) {
+                return res.status(400).json({ message: 'Category not found' });
+            }
+
+            // צור את המיקום במסד
             const newLocation = await Location.create(locationData);
             res.status(201).json({ message: 'Location created successfully', location: newLocation });
         } catch (error) {
@@ -30,6 +48,7 @@ const locationsController = {
             res.status(500).json({ message: 'Error creating location', error: error.message });
         }
     },
+
 
     // קבלת מיקום לפי ID
     getLocationById: async (req, res) => {
