@@ -1,5 +1,26 @@
-// src/models/Location.js
 const db = require('../config/db'); // ודא/י שהנתיב לקובץ ה-db config נכון
+
+// פונקציות עזר לחישוב מרחק גאוגרפי (Haversine Formula) - מחוץ למחלקה
+// למרות שהחישוב עצמו נעשה ב-SQL, הפונקציות האלה יכולות לשמש לבדיקה/הבנה
+function deg2rad(deg) {
+    return deg * (Math.PI / 180);
+}
+
+// ניתן להשאיר את הפונקציה הזו כהערה או למחוק אם החישוב נעשה רק ב-SQL
+/*
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of Earth in kilometers
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const d = R * c; // Distance in km
+    return d;
+}
+*/
 
 class Location {
     // שיטה ליצירת מיקום חדש
@@ -15,6 +36,7 @@ class Location {
     }
 
     // שיטה לקבלת כל המיקומים (כולל קטגוריה ושם משתמש)
+    // הערה: שיטה זו תוחלף ב-findLocations כאשר אין פרמטרי חיפוש
     static async getAll() {
         const sql = `
             SELECT
@@ -122,6 +144,67 @@ class Location {
         const sql = `UPDATE locations SET comment_count = comment_count - 1 WHERE id = ? AND comment_count > 0`;
         const [result] = await db.execute(sql, [locationId]);
         return result.affectedRows;
+    }
+
+    // שיטה לחיפוש מיקומים לפי שם, קטגוריה ו/או מרחק
+    static async findLocations({ name, category, lat, lng, radius }) {
+        let query = `
+            SELECT
+                l.id,
+                l.name,
+                l.lat,
+                l.lng,
+                l.description,
+                l.images,
+                l.like_count,
+                l.comment_count,
+                l.created_at,
+                c.name AS category_name,
+                u.name AS user_name,
+                l.user_id AS firebase_uid
+            FROM
+                locations l
+            JOIN
+                categories c ON l.category_id = c.id
+            LEFT JOIN
+                users u ON l.user_id = u.firebase_uid
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (name) {
+            query += ` AND l.name LIKE ?`;
+            params.push(`%${name}%`);
+        }
+
+        if (category) {
+            query += ` AND c.name LIKE ?`; // חיפוש לפי שם קטגוריה
+            params.push(`%${category}%`);
+        }
+
+        // --- חיפוש גאוגרפי ---
+        if (lat && lng && radius) {
+            // חישוב מרחק באמצעות נוסחת Haversine ב-SQL
+            // 6371 הוא רדיוס כדור הארץ בקילומטרים
+            query += `
+                AND (
+                    6371 * ACOS(
+                        COS(RADIANS(?)) * COS(RADIANS(l.lat)) *
+                        COS(RADIANS(l.lng) - RADIANS(?)) +
+                        SIN(RADIANS(?)) * SIN(RADIANS(l.lat))
+                    )
+                ) <= ?
+            `;
+            // הפרמטרים ל-Haversine: current_lat, current_lng, current_lat, radius
+            params.push(parseFloat(lat), parseFloat(lng), parseFloat(lat), parseFloat(radius));
+        }
+
+        // אם לא סופקו פרמטרי חיפוש, נחזיר את כל המיקומים
+        // אם כן, נמיין לפי תאריך יצירה (או לפי רלוונטיות אחרת)
+        query += ` ORDER BY l.created_at DESC`;
+
+        const [rows] = await db.execute(query, params);
+        return rows;
     }
 }
 
