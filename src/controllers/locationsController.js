@@ -1,16 +1,34 @@
-// src/controllers/locationsController.js
 const Location = require('../models/Location');
 const Comment = require('../models/Comment'); // נצטרך את זה לטובת תגובות למיקומים אם יתווסף
+// ניתן להוסיף את express-validator לולידציה חזקה יותר:
+// const { validationResult } = require('express-validator'); 
 
 const locationsController = {
-    // קבלת כל המיקומים
-    getAllLocations: async (req, res) => {
+    // קבלת כל המיקומים וגם ביצוע חיפוש מיקומים
+    // הפונקציה הזו תשרת את הראוט GET /locations
+    searchLocations: async (req, res) => {
         try {
-            const locations = await Location.getAll();
+            const { name, category, lat, lng, radius } = req.query;
+
+            // בדיקת ולידציה בסיסית (ניתן להרחיב עם express-validator)
+            if (radius && (!lat || !lng)) {
+                return res.status(400).json({ message: 'Latitude and longitude are required when radius is provided.' });
+            }
+            if (radius && (isNaN(parseFloat(radius)) || parseFloat(radius) <= 0)) {
+                return res.status(400).json({ message: 'Radius must be a positive number.' });
+            }
+            if ((lat || lng) && (isNaN(parseFloat(lat)) || isNaN(parseFloat(lng)))) {
+                return res.status(400).json({ message: 'Latitude and longitude must be valid numbers.' });
+            }
+
+            // קריאה לפונקציית החיפוש במודל Location
+            // אם אין פרמטרים, findLocations תחזיר את הכל
+            const locations = await Location.findLocations({ name, category, lat, lng, radius });
+
             res.status(200).json(locations);
         } catch (error) {
-            console.error('Error fetching locations:', error);
-            res.status(500).json({ message: 'Error fetching locations', error: error.message });
+            console.error('Error fetching or searching locations:', error);
+            res.status(500).json({ message: 'Server error fetching or searching locations', error: error.message });
         }
     },
 
@@ -18,6 +36,9 @@ const locationsController = {
     createLocation: async (req, res) => {
         try {
             const locationData = req.body;
+// הוספת user_id (מזהה משתמש) מהטוקן המאומת אם קיים middleware אימות
+            // נניח ש-req.user.firebase_uid זמין אם משתמש מאומת.
+            // ה-API מאפשר למשתמשים לתרום מיקומים ופוסטים קהילתיים. 
 
             // ודא שיש משתמש
             if (!req.user || !req.user.firebase_uid) {
@@ -87,7 +108,7 @@ const locationsController = {
             }
             res.status(200).json({ message: 'Location deleted successfully' });
         } catch (error) {
-            console.error('Error deleting location:', error);
+                console.error('Error deleting location:', error);
             res.status(500).json({ message: 'Error deleting location', error: error.message });
         }
     },
