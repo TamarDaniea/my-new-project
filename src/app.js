@@ -10,6 +10,7 @@ const commentsRouter = require('./routes/comments');
 const categoriesRouter = require('./routes/categories');
 const fakeAuth = require('./middlewares/fakeAuth');
 const reportsRouter = require('./routes/reports');
+const favoritesRouter = require('./routes/favoritesRouter');
 const app = express();
 
 // Middleware
@@ -24,12 +25,14 @@ app.get('/', (req, res) => {
 
 // Routes
 app.use('/api/users', fakeAuth,usersRouter);
+app.use('/api/favorites', favoritesRouter);
 app.use('/api/locations', fakeAuth, locationsRouter);
 app.use('/api/locations', locationsRouter); 
 app.use('/api/posts', postsRouter);
 app.use('/api/comments', commentsRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api', reportsRouter);
+
 // טיפול בשגיאות (אופציונלי, מומלץ - הוסף/י בסוף, לפני app.listen)
 app.use((err, req, res, next) => {
     console.error(err.stack);
