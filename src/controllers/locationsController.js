@@ -1,7 +1,8 @@
 const Location = require('../models/Location');
 const Comment = require('../models/Comment'); // נצטרך את זה לטובת תגובות למיקומים אם יתווסף
 // ניתן להוסיף את express-validator לולידציה חזקה יותר:
-// const { validationResult } = require('express-validator'); 
+const { validationResult } = require('express-validator');
+const db = require('../config/db'); // זה נשאר כי הוא בשימוש
 
 const locationsController = {
     // קבלת כל המיקומים וגם ביצוע חיפוש מיקומים
@@ -28,7 +29,7 @@ const locationsController = {
             res.status(200).json(locations);
         } catch (error) {
             console.error('Error fetching or searching locations:', error);
-            res.status(500).json({ message: 'Server error fetching or searching locations', error: error.message });
+            res.status(500).json({ message: req.t('locations.fetch_error'), error: error.message }); // נבחר בגרסת התרגום
         }
     },
 
@@ -36,52 +37,46 @@ const locationsController = {
     createLocation: async (req, res) => {
         try {
             const locationData = req.body;
-// הוספת user_id (מזהה משתמש) מהטוקן המאומת אם קיים middleware אימות
-            // נניח ש-req.user.firebase_uid זמין אם משתמש מאומת.
-            // ה-API מאפשר למשתמשים לתרום מיקומים ופוסטים קהילתיים. 
+            // הוספת user_id (מזהה משתמש) מהטוקן המאומת אם קיים middleware אימות
+            // נניח ש-req.user.firebase_uid זמין אם משתמש מאומת.
+            // ה-API מאפשר למשתמשים לתרום מיקומים ופוסטים קהילתיים.
 
-            // ודא שיש משתמש
             if (!req.user || !req.user.firebase_uid) {
-                return res.status(401).json({ message: 'Unauthorized: user not authenticated' });
+                return res.status(401).json({ message: req.t('locations.unauthorized') });
             }
 
-            // הוסף את מזהה המשתמש למידע של המקום
             locationData.user_id = req.user.firebase_uid;
 
-            // בדיקה על שדות חובה
             const { name, lat, lng, category_id } = locationData;
             if (!name || !lat || !lng || !category_id) {
-                return res.status(400).json({ message: 'Missing required fields: name, lat, lng, category_id' });
+                return res.status(400).json({ message: req.t('locations.missing_fields') });
             }
 
-            // ודא שהקטגוריה קיימת במסד
-            const db = require('../config/db');
             const [rows] = await db.query('SELECT id FROM categories WHERE id = ?', [category_id]);
             if (rows.length === 0) {
-                return res.status(400).json({ message: 'Category not found' });
+                return res.status(400).json({ message: req.t('locations.category_not_found') });
             }
 
-            // צור את המיקום במסד
             const newLocation = await Location.create(locationData);
-            res.status(201).json({ message: 'Location created successfully', location: newLocation });
+            console.log(req.language)
+            res.status(201).json({ message: req.t('locations.create_success'), location: newLocation });
         } catch (error) {
             console.error('Error creating location:', error);
-            res.status(500).json({ message: 'Error creating location', error: error.message });
+            res.status(500).json({ message: req.t('locations.create_error'), error: error.message });
         }
     },
-
 
     // קבלת מיקום לפי ID
     getLocationById: async (req, res) => {
         try {
             const location = await Location.getById(req.params.id);
             if (!location) {
-                return res.status(404).json({ message: 'Location not found' });
+                return res.status(404).json({ message: req.t('locations.not_found') });
             }
             res.status(200).json(location);
         } catch (error) {
             console.error('Error fetching location by ID:', error);
-            res.status(500).json({ message: 'Error fetching location', error: error.message });
+            res.status(500).json({ message: req.t('locations.fetch_error'), error: error.message });
         }
     },
 
@@ -90,12 +85,13 @@ const locationsController = {
         try {
             const affectedRows = await Location.update(req.params.id, req.body);
             if (affectedRows === 0) {
-                return res.status(404).json({ message: 'Location not found or no changes made' });
+                return res.status(404).json({ message: req.t('locations.not_found') });
             }
-            res.status(200).json({ message: 'Location updated successfully' });
+
+            res.status(200).json({ message: req.t('locations.update_success') });
         } catch (error) {
             console.error('Error updating location:', error);
-            res.status(500).json({ message: 'Error updating location', error: error.message });
+            res.status(500).json({ message: req.t('locations.update_error'), error: error.message });
         }
     },
 
@@ -104,27 +100,27 @@ const locationsController = {
         try {
             const affectedRows = await Location.delete(req.params.id);
             if (affectedRows === 0) {
-                return res.status(404).json({ message: 'Location not found' });
+                return res.status(404).json({ message: req.t('locations.not_found') });
             }
-            res.status(200).json({ message: 'Location deleted successfully' });
+            res.status(200).json({ message: req.t('locations.delete_success') });
         } catch (error) {
-                console.error('Error deleting location:', error);
-            res.status(500).json({ message: 'Error deleting location', error: error.message });
+            console.error('Error deleting location:', error);
+            res.status(500).json({ message: req.t('locations.delete_error'), error: error.message }); // נבחר בגרסת התרגום
         }
     },
 
     // הוספת לייק למיקום (מעדכן מונה בלבד)
     addLikeToLocation: async (req, res) => {
         try {
-            const { locationId } = req.params; // Get locationId from URL params
+            const { locationId } = req.params;
             const affectedRows = await Location.incrementLikeCount(locationId);
             if (affectedRows === 0) {
-                return res.status(404).json({ message: 'Location not found' });
+                return res.status(404).json({ message: req.t('locations.not_found') });
             }
-            res.status(200).json({ message: 'Like added to location' });
+            res.status(200).json({ message: req.t('locations.like_added') });
         } catch (error) {
             console.error('Error adding like to location:', error);
-            res.status(500).json({ message: 'Error adding like', error: error.message });
+            res.status(500).json({ message: req.t('locations.like_add_error'), error: error.message });
         }
     },
 
@@ -134,12 +130,12 @@ const locationsController = {
             const { locationId } = req.params;
             const affectedRows = await Location.decrementLikeCount(locationId);
             if (affectedRows === 0) {
-                return res.status(404).json({ message: 'Location not found or like_count already 0' });
+                return res.status(404).json({ message: req.t('locations.like_remove_error') });
             }
-            res.status(200).json({ message: 'Like removed from location' });
+            res.status(200).json({ message: req.t('locations.like_removed') });
         } catch (error) {
             console.error('Error removing like from location:', error);
-            res.status(500).json({ message: 'Error removing like', error: error.message });
+            res.status(500).json({ message: req.t('locations.like_remove_error'), error: error.message });
         }
     }
 };

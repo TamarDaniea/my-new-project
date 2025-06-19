@@ -11,6 +11,8 @@ const categoriesRouter = require('./routes/categories');
 const fakeAuth = require('./middlewares/fakeAuth');
 const reportsRouter = require('./routes/reports');
 const favoritesRouter = require('./routes/favoritesRouter');
+const i18n = require('./utils/i18n');
+const i18nextMiddleware = require('i18next-http-middleware');
 const app = express();
 
 // Middleware
@@ -24,6 +26,8 @@ app.get('/', (req, res) => {
 });
 
 // Routes
+
+app.use(i18nextMiddleware.handle(i18n));
 app.use('/api/users', fakeAuth,usersRouter);
 app.use('/api/favorites', favoritesRouter);
 app.use('/api/locations', fakeAuth, locationsRouter);
