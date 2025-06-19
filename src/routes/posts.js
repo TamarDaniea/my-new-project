@@ -6,6 +6,8 @@ const commentsController = require('../controllers/commentsController'); // לט
 
 // GET all posts
 router.get('/', postsController.getAllPosts);
+// GET posts by category
+router.get('/byCategory', postsController.getPostsByCategory);
 // POST new post
 router.post('/', postsController.createPost);
 // GET post by ID
@@ -29,5 +31,6 @@ router.get('/:postId/comments', commentsController.getCommentsForPost);
 // Note: The structure here assumes commentId is unique enough to delete directly.
 // If you need post_id as well, route will be different.
 router.delete('/comments/:commentId', commentsController.deleteComment);
+
 
 module.exports = router;

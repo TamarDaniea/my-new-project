@@ -93,10 +93,12 @@ const postsController = {
      * @param {object} res - אובייקט התגובה.
      */
     getPostById: async (req, res) => {
+        
         try {
             const post = await Post.getById(req.params.id);
             if (!post) {
                 return res.status(404).json({ message: 'Post not found' });
+
             }
             res.status(200).json(post);
         } catch (error) {
@@ -177,7 +179,27 @@ const postsController = {
             res.status(500).json({ message: 'Error adding like', error: error.message });
         }
     },
+ getPostsByCategory: async (req, res) => {
+    
+        try {
+            const { categoryId } = req.query;
 
+            if (!categoryId) {
+                return res.status(400).json({ message: 'categoryId is required as a query parameter' });
+            }
+
+            const category = await Category.getById(categoryId);
+            if (!category) {
+                return res.status(404).json({ message: `Category with ID ${categoryId} not found.` });
+            }
+
+            const posts = await Post.getByCategoryId(categoryId);
+            res.status(200).json(posts);
+        } catch (error) {
+            console.error('Error fetching posts by category:', error);
+            res.status(500).json({ message: 'Error fetching posts by category', error: error.message });
+        }
+    },
     /**
      * הסרת לייק מפוסט.
      * @param {object} req - אובייקט הבקשה, עם req.params.postId.

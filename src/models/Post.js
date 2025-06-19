@@ -1,7 +1,18 @@
 // src/models/Post.js
 const db = require('../config/db'); // ודא/י שהנתיב לקובץ ה-db config נכון
 
+function safeJsonParseArray(value) {
+    if (!value || typeof value !== 'string') return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
 class Post {
+    
     /**
      * יוצר פוסט חדש במסד הנתונים.
      * @param {object} postData - אובייקט המכיל את פרטי הפוסט.
@@ -84,7 +95,8 @@ class Post {
         // חשוב לטפל ב-images: הוא נשמר כ-JSON string ב-DB
         return rows.map(row => ({
             ...row,
-            images: row.images ? JSON.parse(row.images) : [], // ודא/י שה-images מומר למערך
+          images: safeJsonParseArray(row.images),
+ // ודא/י שה-images מומר למערך
             created_at: row.created_at ? new Date(row.created_at).toISOString() : null // לוודא פורמט עקבי
         }));
     }
@@ -125,7 +137,8 @@ class Post {
         if (rows[0]) {
             return {
                 ...rows[0],
-                images: rows[0].images ? JSON.parse(rows[0].images) : [], // ודא/י שה-images מומר למערך
+           images: safeJsonParseArray(row.images),
+ // ודא/י שה-images מומר למערך
                 created_at: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null // לוודא פורמט עקבי
             };
         }
@@ -217,6 +230,51 @@ class Post {
         const [result] = await db.execute(sql, [postId]);
         return result.affectedRows;
     }
+        /**
+     * שליפת פוסטים לפי מזהה קטגוריה.
+     * @param {number} categoryId - מזהה הקטגוריה.
+     * @returns {Promise<Array<object>>} - מערך של פוסטים התואמים לקטגוריה.
+     */
+    static async getByCategoryId(categoryId) {
+        const sql = `
+            SELECT
+                p.id,
+                p.title,
+                p.content,
+                p.images,
+                p.like_count,
+                p.comment_count,
+                p.created_at,
+                u.name AS user_name,
+                p.user_id AS firebase_uid,
+                l.name AS location_name,
+                l.id AS location_id,
+                c.name AS category_name,
+                c.id AS category_id
+            FROM
+                posts p
+            LEFT JOIN
+                users u ON p.user_id = u.firebase_uid
+            LEFT JOIN
+                locations l ON p.location_id = l.id
+            LEFT JOIN
+                categories c ON p.category_id = c.id
+            WHERE
+                p.category_id = ?
+            ORDER BY
+                p.created_at DESC
+        `;
+
+        const [rows] = await db.execute(sql, [categoryId]);
+
+        return rows.map(row => ({
+            ...row,
+            images: safeJsonParseArray(row.images),
+
+            created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+        }));
+    }
+
 }
 
 module.exports = Post;
