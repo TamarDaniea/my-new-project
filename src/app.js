@@ -9,6 +9,7 @@ const postsRouter = require('./routes/posts');
 const commentsRouter = require('./routes/comments');
 const categoriesRouter = require('./routes/categories');
 const fakeAuth = require('./middlewares/fakeAuth');
+const reportsRouter = require('./routes/reports');
 const app = express();
 
 // Middleware
@@ -28,6 +29,7 @@ app.use('/api/locations', locationsRouter);
 app.use('/api/posts', postsRouter);
 app.use('/api/comments', commentsRouter);
 app.use('/api/categories', categoriesRouter);
+app.use('/api', reportsRouter);
 // טיפול בשגיאות (אופציונלי, מומלץ - הוסף/י בסוף, לפני app.listen)
 app.use((err, req, res, next) => {
     console.error(err.stack);
