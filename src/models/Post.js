@@ -12,7 +12,7 @@ function safeJsonParseArray(value) {
 }
 
 class Post {
-    
+
     /**
      * יוצר פוסט חדש במסד הנתונים.
      * @param {object} postData - אובייקט המכיל את פרטי הפוסט.
@@ -27,8 +27,8 @@ class Post {
         const sql = `
             INSERT INTO posts (title, content, images, user_id, category_id, location_id, created_at, like_count, comment_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)
-        `; 
-        
+        `;
+
         const values = [
             title,
             content,
@@ -78,8 +78,8 @@ class Post {
                 p.user_id AS firebase_uid,
                 l.name AS location_name,
                 l.id AS location_id,
-                c.name AS category_name,  -- הוסף/הוסיפי את שם הקטגוריה
-                c.id AS category_id       -- הוסף/הוסיפי את ID הקטגוריה
+                c.name AS category_name,   -- הוסף/הוסיפי את שם הקטגוריה
+                c.id AS category_id         -- הוסף/הוסיפי את ID הקטגוריה
             FROM
                 posts p
             LEFT JOIN
@@ -95,8 +95,7 @@ class Post {
         // חשוב לטפל ב-images: הוא נשמר כ-JSON string ב-DB
         return rows.map(row => ({
             ...row,
-          images: safeJsonParseArray(row.images),
- // ודא/י שה-images מומר למערך
+            images: safeJsonParseArray(row.images), // ודא/י שה-images מומר למערך
             created_at: row.created_at ? new Date(row.created_at).toISOString() : null // לוודא פורמט עקבי
         }));
     }
@@ -121,8 +120,8 @@ class Post {
                 p.user_id AS firebase_uid,
                 l.name AS location_name,
                 l.id AS location_id,
-                c.name AS category_name,  -- הוסף/הוסיפי את שם הקטגוריה
-                c.id AS category_id       -- הוסף/הוסיפי את ID הקטגוריה
+                c.name AS category_name,   -- הוסף/הוסיפי את שם הקטגוריה
+                c.id AS category_id         -- הוסף/הוסיפי את ID הקטגוריה
             FROM
                 posts p
             LEFT JOIN
@@ -137,8 +136,7 @@ class Post {
         if (rows[0]) {
             return {
                 ...rows[0],
-           images: safeJsonParseArray(row.images),
- // ודא/י שה-images מומר למערך
+                images: safeJsonParseArray(rows[0].images), // ודא/י שה-images מומר למערך
                 created_at: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null // לוודא פורמט עקבי
             };
         }
@@ -159,9 +157,9 @@ class Post {
                 if (key === 'images') {
                     fields.push(`${key} = ?`);
                     values.push(JSON.stringify(postData[key]));
-                } else if (key === 'location_id' || key === 'category_id') { 
+                } else if (key === 'location_id' || key === 'category_id') {
                     fields.push(`${key} = ?`);
-                    values.push(postData[key] === undefined ? null : postData[key]); 
+                    values.push(postData[key] === undefined ? null : postData[key]);
                 } else {
                     fields.push(`${key} = ?`);
                     values.push(postData[key]);
@@ -190,22 +188,31 @@ class Post {
     /**
      * שיטה לעדכון מונה לייקים (הוספת לייק).
      * @param {number} postId - מזהה הפוסט.
+     * @param {number} amount - הכמות להגדיל (ברירת מחדל 1).
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
-    static async incrementLikeCount(postId) {
-        const sql = `UPDATE posts SET like_count = like_count + 1 WHERE id = ?`;
-        const [result] = await db.execute(sql, [postId]);
+    static async incrementLikeCount(postId , amount = 1) {
+        // התיקון כאן: שימוש ב-? וב-amount במערך ה-values
+        const sql = `UPDATE posts SET like_count = like_count + ? WHERE id = ?`;
+        const [result] = await db.execute(sql, [amount, postId]);
+        console.log(`Incrementing like_count for post ID: ${postId}, amount: ${amount}`);
+        console.log(`Incremented like_count, affected rows: ${result.affectedRows}`);
         return result.affectedRows;
     }
 
     /**
-     * שיטה לעדכון מונה לייקים (הסרת לייק).
+     * שיטה לעדכון מונה לייקים (הסרת לייק או הוספת דיסלייק).
      * @param {number} postId - מזהה הפוסט.
+     * @param {number} amount - הכמות להפחית (ברירת מחדל 1).
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
-    static async decrementLikeCount(postId) {
-        const sql = `UPDATE posts SET like_count = like_count - 1 WHERE id = ? AND like_count > 0`;
-        const [result] = await db.execute(sql, [postId]);
+    static async decrementLikeCount(postId , amount = 1) {
+        // התיקון כאן: שימוש ב-? וב-amount במערך ה-values
+        // הסרתי את AND like_count > 0 כי זה עלול למנוע ירידה מתחת לאפס בדיסלייקים
+        const sql = `UPDATE posts SET like_count = like_count - ? WHERE id = ?`;
+        const [result] = await db.execute(sql, [amount, postId]);
+        console.log(`Decrementing like_count for post ID: ${postId}, amount: ${amount}`);
+        console.log(`Decremented like_count, affected rows: ${result.affectedRows}`);
         return result.affectedRows;
     }
 
@@ -230,7 +237,7 @@ class Post {
         const [result] = await db.execute(sql, [postId]);
         return result.affectedRows;
     }
-        /**
+    /**
      * שליפת פוסטים לפי מזהה קטגוריה.
      * @param {number} categoryId - מזהה הקטגוריה.
      * @returns {Promise<Array<object>>} - מערך של פוסטים התואמים לקטגוריה.
@@ -270,11 +277,9 @@ class Post {
         return rows.map(row => ({
             ...row,
             images: safeJsonParseArray(row.images),
-
             created_at: row.created_at ? new Date(row.created_at).toISOString() : null
         }));
     }
-
 }
 
 module.exports = Post;

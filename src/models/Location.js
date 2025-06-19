@@ -6,33 +6,29 @@ function deg2rad(deg) {
     return deg * (Math.PI / 180);
 }
 
-// ניתן להשאיר את הפונקציה הזו כהערה או למחוק אם החישוב נעשה רק ב-SQL
-/*
-function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Radius of Earth in kilometers
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const d = R * c; // Distance in km
-    return d;
+// פונקציית עזר לטיפול ב-JSON של תמונות, כמו ב-Post.js
+function safeJsonParseArray(value) {
+    if (!value || typeof value !== 'string') return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
 }
-*/
+
 
 class Location {
     // שיטה ליצירת מיקום חדש
     static async create(locationData) {
         const { name, lat, lng, description, images, category_id, user_id } = locationData;
         const sql = `
-            INSERT INTO locations (name, lat, lng, description, images, category_id, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO locations (name, lat, lng, description, images, category_id, user_id, like_count, comment_count, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, NOW())
         `;
         const values = [name, lat, lng, description, JSON.stringify(images), category_id, user_id];
         const [result] = await db.execute(sql, values);
-        return { id: result.insertId, ...locationData };
+        return { id: result.insertId, ...locationData, like_count: 0, comment_count: 0, created_at: new Date().toISOString() };
     }
 
     // שיטה לקבלת כל המיקומים (כולל קטגוריה ושם משתמש)
@@ -51,7 +47,8 @@ class Location {
                 l.created_at,
                 c.name AS category_name,
                 u.name AS user_name,
-                l.user_id AS firebase_uid
+                l.user_id AS firebase_uid,
+                c.id AS category_id -- הוסף/הוסיפי את ה-ID של הקטגוריה
             FROM
                 locations l
             LEFT JOIN
@@ -62,7 +59,11 @@ class Location {
                 l.created_at DESC
         `;
         const [rows] = await db.execute(sql);
-        return rows;
+        return rows.map(row => ({
+            ...row,
+            images: safeJsonParseArray(row.images), // המר/י את מחרוזת ה-JSON למערך
+            created_at: row.created_at ? new Date(row.created_at).toISOString() : null // ודא/י פורמט תאריך עקבי
+        }));
     }
 
     // שיטה לקבלת מיקום לפי ID
@@ -80,7 +81,8 @@ class Location {
                 l.created_at,
                 c.name AS category_name,
                 u.name AS user_name,
-                l.user_id AS firebase_uid
+                l.user_id AS firebase_uid,
+                c.id AS category_id -- הוסף/הוסיפי את ה-ID של הקטגוריה
             FROM
                 locations l
             LEFT JOIN
@@ -90,7 +92,14 @@ class Location {
             WHERE l.id = ?
         `;
         const [rows] = await db.execute(sql, [id]);
-        return rows[0];
+        if (rows[0]) {
+            return {
+                ...rows[0],
+                images: safeJsonParseArray(rows[0].images), // המר/י את מחרוזת ה-JSON למערך
+                created_at: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null // ודא/י פורמט תאריך עקבי
+            };
+        }
+        return null;
     }
 
     // שיטה לעדכון מיקום
@@ -118,22 +127,39 @@ class Location {
         return result.affectedRows;
     }
 
-    // שיטה לעדכון מונה לייקים (הוספת לייק)
-    static async incrementLikeCount(locationId) {
-        const sql = `UPDATE locations SET like_count = like_count + 1 WHERE id = ?`;
-        const [result] = await db.execute(sql, [locationId]);
+    /**
+     * שיטה לעדכון מונה לייקים (הגדלה).
+     * @param {number} locationId - מזהה המיקום.
+     * @param {number} amount - הכמות להגדיל (ברירת מחדל 1).
+     * @returns {Promise<number>} - מספר השורות שהושפעו.
+     */
+    static async incrementLikeCount(locationId, amount = 1) {
+        // *** התיקון כאן: שימוש ב-? וב-amount במערך ה-values ***
+        const sql = `UPDATE locations SET like_count = like_count + ? WHERE id = ?`;
+        const [result] = await db.execute(sql, [amount, locationId]);
+        console.log(`Incrementing like_count for location ID: ${locationId}, amount: ${amount}`);
+        console.log(`Incremented like_count, affected rows: ${result.affectedRows}`);
         return result.affectedRows;
     }
 
-    // שיטה לעדכון מונה לייקים (הסרת לייק)
-    static async decrementLikeCount(locationId) {
-        const sql = `UPDATE locations SET like_count = like_count - 1 WHERE id = ? AND like_count > 0`;
-        const [result] = await db.execute(sql, [locationId]);
+    /**
+     * שיטה לעדכון מונה לייקים (הקטנה).
+     * @param {number} locationId - מזהה המיקום.
+     * @param {number} amount - הכמות להפחית (ברירת מחדל 1).
+     * @returns {Promise<number>} - מספר השורות שהושפעו.
+     */
+    static async decrementLikeCount(locationId, amount = 1) {
+        // *** התיקון כאן: שימוש ב-? וב-amount במערך ה-values ***
+        // *** וגם הסרת התנאי 'AND like_count > 0' ***
+        const sql = `UPDATE locations SET like_count = like_count - ? WHERE id = ?`;
+        const [result] = await db.execute(sql, [amount, locationId]);
+        console.log(`Decrementing like_count for location ID: ${locationId}, amount: ${amount}`);
+        console.log(`Decremented like_count, affected rows: ${result.affectedRows}`);
         return result.affectedRows;
     }
 
     // שיטה לעדכון מונה תגובות (הוספת תגובה)
-    static async incrementCommentCount(locationId) {
+    static async incrementCommentCount(locationId, amount = 1) {
         const sql = `UPDATE locations SET comment_count = comment_count + 1 WHERE id = ?`;
         const [result] = await db.execute(sql, [locationId]);
         return result.affectedRows;
@@ -161,7 +187,8 @@ class Location {
                 l.created_at,
                 c.name AS category_name,
                 u.name AS user_name,
-                l.user_id AS firebase_uid
+                l.user_id AS firebase_uid,
+                c.id AS category_id
             FROM
                 locations l
             JOIN
@@ -204,7 +231,12 @@ class Location {
         query += ` ORDER BY l.created_at DESC`;
 
         const [rows] = await db.execute(query, params);
-        return rows;
+        // המר/י את מחרוזת ה-JSON של images למערך עבור כל שורה
+        return rows.map(row => ({
+            ...row,
+            images: safeJsonParseArray(row.images),
+            created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+        }));
     }
 }
 

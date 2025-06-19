@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Location = require('../models/Location');
 
 const postsController = {
+    
     getAllPosts: async (req, res) => {
         try {
             const posts = await Post.getAll();
@@ -134,6 +135,8 @@ const postsController = {
         }
     },
 
+
+   
     getPostsByCategory: async (req, res) => {
         try {
             const { categoryId } = req.query;

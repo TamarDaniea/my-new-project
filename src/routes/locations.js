@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const locationsController = require('../controllers/locationsController');
-const authMiddleware = require('../middleware/auth'); 
+const fakeAuth = require('../middlewares/fakeAuth');
 
 
 // ראוטים למיקומים
@@ -10,22 +10,22 @@ const authMiddleware = require('../middleware/auth');
 router.get('/', locationsController.searchLocations);
 
 // POST new location - דורש אימות משתמש
-router.post('/', authMiddleware, locationsController.createLocation);
+router.post('/', fakeAuth, locationsController.createLocation);
 
 // GET location by ID
 router.get('/:id', locationsController.getLocationById);
 
 // PUT update location by ID - דורש אימות משתמש
-router.put('/:id', authMiddleware, locationsController.updateLocation);
+router.put('/:id', fakeAuth, locationsController.updateLocation);
 
 // DELETE location by ID - דורש אימות משתמש
-router.delete('/:id', authMiddleware, locationsController.deleteLocation);
+router.delete('/:id', fakeAuth, locationsController.deleteLocation);
 
 // POST add like to location (simple increment/decrement) - דורש אימות משתמש
-router.post('/:locationId/like', authMiddleware, locationsController.addLikeToLocation);
+router.post('/:locationId/like', fakeAuth, locationsController.addLikeToLocation);
 
 // DELETE remove like from location - דורש אימות משתמש
-router.delete('/:locationId/like', authMiddleware, locationsController.removeLikeFromLocation);
+router.delete('/:locationId/like', fakeAuth, locationsController.removeLikeFromLocation);
 
 
 module.exports = router;

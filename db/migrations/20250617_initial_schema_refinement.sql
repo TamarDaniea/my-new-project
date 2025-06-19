@@ -57,14 +57,17 @@ CREATE TABLE IF NOT EXISTS posts (
 );
 
 -- --- Table: comments ---
--- References posts and users.
+-- References posts, locations and users.
+-- **UPDATED:** Added location_id, made user_id NOT NULL, ensured ON UPDATE CASCADE for FKs
 CREATE TABLE IF NOT EXISTS comments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     post_id INT,
-    user_id VARCHAR(255),
+    location_id INT, -- **NEW: Added this column for comments on locations**
+    user_id VARCHAR(255) NOT NULL, -- **UPDATED: Made user_id NOT NULL**
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE CASCADE ON UPDATE CASCADE, -- **NEW: Added FK for location_id**
     FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -80,11 +83,12 @@ CREATE TABLE IF NOT EXISTS favorites (
 
 -- --- Table: votes ---
 -- References users.
+-- **UPDATED:** Made value NOT NULL
 CREATE TABLE IF NOT EXISTS votes (
     user_id VARCHAR(255) NOT NULL,
     item_type ENUM('post', 'location') NOT NULL,
     item_id INT NOT NULL,
-    value TINYINT,
+    value TINYINT NOT NULL, -- **UPDATED: Made value NOT NULL**
     PRIMARY KEY (user_id, item_type, item_id),
     FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE ON UPDATE CASCADE
 );
