@@ -45,6 +45,9 @@ app.get('/', (req, res) => {
 // ************** שימוש ב-middleware של i18n. חשוב שזה יהיה לפני הראוטים שמשתמשים ב-req.t() **************
 app.use(i18nextMiddleware.handle(i18n)); // זה כבר קיים ונכון
 
+// ייבוא הראוטר החדש לזמני שבת
+const shabbatTimesRouter = require('./routes/shabbatTimes'); // *** הוספה חדשה: ייבוא shabbatTimesRouter ***
+
 
 // ************** שינוי/תיקון: הסרת הכפילות ב-locationsRouter **************
 // יש לבחור איזה middleware להפעיל על /api/locations. אם fakeAuth הוא כללי לכל המשתתפים, השאירו אותו.
@@ -65,6 +68,10 @@ app.use('/api/favorites', fakeAuth, favoritesRouter); // **שינוי: הוספ�
 
 // ************** הוספה חדשה: ה-route עבור votes **************
 app.use('/api/votes', fakeAuth, votesRouter); // זה כבר קיים ונכון
+
+// חיבור הראוטר החדש של זמני השבת לנתיב API
+app.use('/api/shabbat-times', shabbatTimesRouter); // *** הוספה חדשה: חיבור shabbatTimesRouter ***
+
 
 // טיפול בשגיאות (אופציונלי, מומלץ - הוסף/י בסוף, לפני app.listen)
 app.use((err, req, res, next) => {
