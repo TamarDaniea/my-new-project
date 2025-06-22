@@ -28,20 +28,39 @@ class User {
         }
     }
 
+    /**
+     * מקבל משתמש לפי firebase_uid.
+     * @param {string} firebaseUid - ה-UID של המשתמש מ-Firebase.
+     * @returns {Promise<object|null>} - אובייקט המשתמש או null אם לא נמצא.
+     */
     static async getById(firebaseUid) {
-        const sql = `
-            SELECT firebase_uid, name, email, role, city, created_at 
-            FROM users 
-            WHERE firebase_uid = ?
-        `;
-        const [rows] = await db.execute(sql, [firebaseUid]);
-        if (rows[0]) {
-            return {
-                ...rows[0],
-                created_at: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null
-            };
+        try {
+            const sql = `
+                SELECT 
+                    firebase_uid, 
+                    name, 
+                    email, 
+                    role, 
+                    city, 
+                    created_at 
+                FROM 
+                    users 
+                WHERE 
+                    firebase_uid = ?
+            `;
+            const [rows] = await db.execute(sql, [firebaseUid]);
+            if (rows.length > 0) {
+                // המר את created_at לפורמט ISO String אם קיים
+                return {
+                    ...rows[0],
+                    created_at: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching user by ID:', error);
+            throw error;
         }
-        return null;
     }
 
     static async update(firebaseUid, userData) {

@@ -1,10 +1,10 @@
 const Post = require('../models/Post');
 const Category = require('../models/Category');
-const User = require('../models/User');
+const User = require('../models/User'); // *** חדש: ייבוא מודל User לבדיקת תפקיד אדמין ***
 const Location = require('../models/Location');
 
 const postsController = {
-    
+
     getAllPosts: async (req, res) => {
         try {
             const posts = await Post.getAll();
@@ -31,8 +31,8 @@ const postsController = {
                 return res.status(400).json({ message: req.t('posts.invalid_category_type', { id: category_id }) });
             }
 
-            const user_id = req.user ? req.user.firebase_uid : 'test_uid';
-            const userExists = await User.getById(user_id);
+            const user_id = req.user ? req.user.firebase_uid : 'test_uid'; // *** יש לוודא שזה מגיע מ-middleware אמיתי ולא 'test_uid' ב-production ***
+            const userExists = await User.getById(user_id); // ודא/י שפונקציה זו קיימת במודל User
             if (!userExists) {
                 return res.status(404).json({ message: req.t('posts.user_not_found', { id: user_id }) });
             }
@@ -77,10 +77,28 @@ const postsController = {
         }
     },
 
+   
     updatePost: async (req, res) => {
         try {
             const { id } = req.params;
             const postData = req.body;
+            const userId = req.user ? req.user.firebase_uid : null;
+
+            if (!userId) {
+                return res.status(401).json({ message: req.t('posts.unauthorized') });
+            }
+
+            // בדיקת אם המשתמש הוא אדמין
+            const user = await User.getById(userId);
+            const isAdmin = user && user.role === 'admin';
+
+            // בדיקת בעלות על הפוסט
+            const isOwner = await Post.isOwner(id, userId);
+
+            // אם המשתמש אינו בעל הפוסט ואינו אדמין, אין לו הרשאה לעדכן
+            if (!isOwner && !isAdmin) {
+                return res.status(403).json({ message: req.t('posts.forbidden_update') }); // *** חדש: הודעת שגיאה לעדכון לא מורשה ***
+            }
 
             if (postData.category_id) {
                 const category = await Category.getById(postData.category_id);
@@ -98,6 +116,7 @@ const postsController = {
 
             const affectedRows = await Post.update(id, postData);
             if (affectedRows === 0) {
+                // ניתן להבחין בין פוסט לא נמצא לבין לא היו שינויים, אבל 404 תקין גם כאן
                 return res.status(404).json({ message: req.t('posts.update_no_change') });
             }
 
@@ -108,9 +127,29 @@ const postsController = {
         }
     },
 
+  
     deletePost: async (req, res) => {
         try {
-            const affectedRows = await Post.delete(req.params.id);
+            const postId = req.params.id;
+            const userId = req.user ? req.user.firebase_uid : null;
+
+            if (!userId) {
+                return res.status(401).json({ message: req.t('posts.unauthorized') });
+            }
+
+            // בדיקת אם המשתמש הוא אדמין
+            const user = await User.getById(userId);
+            const isAdmin = user && user.role === 'admin';
+
+            // בדיקת בעלות על הפוסט
+            const isOwner = await Post.isOwner(postId, userId);
+
+            // אם המשתמש אינו בעל הפוסט ואינו אדמין, אין לו הרשאה למחוק
+            if (!isOwner && !isAdmin) {
+                return res.status(403).json({ message: req.t('posts.forbidden_delete') });
+            }
+
+            const affectedRows = await Post.delete(postId);
             if (affectedRows === 0) {
                 return res.status(404).json({ message: req.t('posts.not_found') });
             }
@@ -135,8 +174,6 @@ const postsController = {
         }
     },
 
-
-   
     getPostsByCategory: async (req, res) => {
         try {
             const { categoryId } = req.query;

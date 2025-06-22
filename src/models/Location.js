@@ -1,3 +1,4 @@
+// models/Location.js
 const db = require('../config/db'); // ודא/י שהנתיב לקובץ ה-db config נכון
 
 // פונקציות עזר לחישוב מרחק גאוגרפי (Haversine Formula) - מחוץ למחלקה
@@ -120,11 +121,30 @@ class Location {
         return result.affectedRows;
     }
 
-    // שיטה למחיקת מיקום
+    // שיטה למחיקת מיקום - נשארת כפי שהיא, יעילה בזכות הגדרות ה-DB
     static async delete(id) {
         const sql = `DELETE FROM locations WHERE id = ?`;
         const [result] = await db.execute(sql, [id]);
         return result.affectedRows;
+    }
+
+    /**
+     * פונקציה חדשה: בודקת אם משתמש מסוים הוא הבעלים של המיקום.
+     * @param {number} locationId - מזהה המיקום.
+     * @param {string} userId - ה-UID של המשתמש.
+     * @returns {Promise<boolean>} - true אם המשתמש הוא הבעלים, false אחרת.
+     */
+    static async isOwner(locationId, userId) {
+        try {
+            const [rows] = await db.query('SELECT user_id FROM locations WHERE id = ?', [locationId]);
+            if (rows.length === 0) {
+                return false; // המיקום לא נמצא
+            }
+            return rows[0].user_id === userId;
+        } catch (error) {
+            console.error('Error checking location ownership:', error);
+            throw error;
+        }
     }
 
     /**
@@ -134,7 +154,6 @@ class Location {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async incrementLikeCount(locationId, amount = 1) {
-        // *** התיקון כאן: שימוש ב-? וב-amount במערך ה-values ***
         const sql = `UPDATE locations SET like_count = like_count + ? WHERE id = ?`;
         const [result] = await db.execute(sql, [amount, locationId]);
         console.log(`Incrementing like_count for location ID: ${locationId}, amount: ${amount}`);
@@ -149,12 +168,10 @@ class Location {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async decrementLikeCount(locationId, amount = 1) {
-        // *** התיקון כאן: שימוש ב-? וב-amount במערך ה-values ***
-        // *** וגם הסרת התנאי 'AND like_count > 0' ***
         const sql = `UPDATE locations SET like_count = like_count - ? WHERE id = ?`;
         const [result] = await db.execute(sql, [amount, locationId]);
         console.log(`Decrementing like_count for location ID: ${locationId}, amount: ${amount}`);
-        console.log(`Decremented like_count, affected rows: ${result.affectedRows}`);
+        console.        console.log(`Decremented like_count, affected rows: ${result.affectedRows}`);
         return result.affectedRows;
     }
 

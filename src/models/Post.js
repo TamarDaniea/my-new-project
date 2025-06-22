@@ -186,13 +186,31 @@ class Post {
     }
 
     /**
+     * פונקציה חדשה: בודקת אם משתמש מסוים הוא הבעלים של הפוסט.
+     * @param {number} postId - מזהה הפוסט.
+     * @param {string} userId - ה-UID של המשתמש.
+     * @returns {Promise<boolean>} - true אם המשתמש הוא הבעלים, false אחרת.
+     */
+    static async isOwner(postId, userId) {
+        try {
+            const [rows] = await db.query('SELECT user_id FROM posts WHERE id = ?', [postId]);
+            if (rows.length === 0) {
+                return false; // הפוסט לא נמצא
+            }
+            return rows[0].user_id === userId;
+        } catch (error) {
+            console.error('Error checking post ownership:', error);
+            throw error;
+        }
+    }
+
+    /**
      * שיטה לעדכון מונה לייקים (הוספת לייק).
      * @param {number} postId - מזהה הפוסט.
      * @param {number} amount - הכמות להגדיל (ברירת מחדל 1).
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async incrementLikeCount(postId , amount = 1) {
-        // התיקון כאן: שימוש ב-? וב-amount במערך ה-values
         const sql = `UPDATE posts SET like_count = like_count + ? WHERE id = ?`;
         const [result] = await db.execute(sql, [amount, postId]);
         console.log(`Incrementing like_count for post ID: ${postId}, amount: ${amount}`);
@@ -207,8 +225,6 @@ class Post {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async decrementLikeCount(postId , amount = 1) {
-        // התיקון כאן: שימוש ב-? וב-amount במערך ה-values
-        // הסרתי את AND like_count > 0 כי זה עלול למנוע ירידה מתחת לאפס בדיסלייקים
         const sql = `UPDATE posts SET like_count = like_count - ? WHERE id = ?`;
         const [result] = await db.execute(sql, [amount, postId]);
         console.log(`Decrementing like_count for post ID: ${postId}, amount: ${amount}`);
