@@ -25,8 +25,8 @@ class Post {
         const created_at = new Date(); // הוספנו תאריך יצירה
 
         const sql = `
-            INSERT INTO posts (title, content, images, user_id, category_id, location_id, created_at, like_count, comment_count)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)
+            INSERT INTO posts (title, content, images, user_id, category_id, location_id, created_at, like_count, comment_count, is_deleted)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, FALSE)
         `;
 
         const values = [
@@ -51,7 +51,8 @@ class Post {
                 location_id: location_id || null,
                 created_at: created_at.toISOString(),
                 like_count: 0,
-                comment_count: 0
+                comment_count: 0,
+                is_deleted: false // נחזיר את הערך החדש
             };
         } catch (error) {
             console.error('Error creating post in model:', error);
@@ -74,6 +75,7 @@ class Post {
             p.like_count,
             p.comment_count,
             p.created_at,
+            p.is_deleted, -- הוספה: שדה is_deleted
             u.name AS user_name,
             p.user_id AS firebase_uid,
             l.name AS location_name,
@@ -89,10 +91,10 @@ class Post {
         LEFT JOIN
             categories c ON p.category_id = c.id
         WHERE
-            p.is_deleted = false
+            p.is_deleted = FALSE -- רק פוסטים שאינם מחוקים
         ORDER BY
             p.created_at DESC
-    `;
+        `;
         const [rows] = await db.execute(sql);
         return rows.map(row => ({
             ...row,
@@ -117,12 +119,13 @@ class Post {
                 p.like_count,
                 p.comment_count,
                 p.created_at,
+                p.is_deleted, -- הוספה: שדה is_deleted
                 u.name AS user_name,
                 p.user_id AS firebase_uid,
                 l.name AS location_name,
                 l.id AS location_id,
-                c.name AS category_name,   -- הוסף/הוסיפי את שם הקטגוריה
-                c.id AS category_id         -- הוסף/הוסיפי את ID הקטגוריה
+                c.name AS category_name,
+                c.id AS category_id
             FROM
                 posts p
             LEFT JOIN
@@ -130,8 +133,8 @@ class Post {
             LEFT JOIN
                 locations l ON p.location_id = l.id
             LEFT JOIN
-                categories c ON p.category_id = c.id -- הצטרפות לטבלת קטגוריות
-           WHERE p.id = ? AND p.is_deleted = false
+                categories c ON p.category_id = c.id
+            WHERE p.id = ? AND p.is_deleted = FALSE -- רק פוסטים שאינם מחוקים
         `;
         const [rows] = await db.execute(sql, [id]);
         if (rows[0]) {
@@ -155,21 +158,31 @@ class Post {
         const values = [];
         for (const key in postData) {
             if (postData.hasOwnProperty(key)) {
+                // ודא שלא ניתן לעדכן את user_id או created_at
+                if (key === 'user_id' || key === 'created_at' || key === 'like_count' || key === 'comment_count' || key === 'is_deleted') {
+                    continue; // דלג על שדות אלו
+                }
+
                 if (key === 'images') {
                     fields.push(`${key} = ?`);
-                    values.push(JSON.stringify(postData[key]));
+                    // אם images הוא null/undefined, נשמור מערך ריק. אחרת, נמיר ל-JSON
+                    values.push(postData[key] === null || postData[key] === undefined ? JSON.stringify([]) : JSON.stringify(postData[key]));
                 } else if (key === 'location_id' || key === 'category_id') {
                     fields.push(`${key} = ?`);
-                    values.push(postData[key] === undefined ? null : postData[key]);
+                    // מאפשר עדכון ל-NULL אם הערך הוא null או undefined במפורש
+                    values.push(postData[key] === null ? null : postData[key]);
                 } else {
                     fields.push(`${key} = ?`);
                     values.push(postData[key]);
                 }
             }
         }
-        if (fields.length === 0) return 0;
+        if (fields.length === 0) {
+            console.log('No fields to update for post ID:', id);
+            return 0;
+        }
 
-        const sql = `UPDATE posts SET ${fields.join(', ')} WHERE id = ?`;
+        const sql = `UPDATE posts SET ${fields.join(', ')} WHERE id = ? AND is_deleted = FALSE`; // רק פוסטים שאינם מחוקים
         values.push(id);
         const [result] = await db.execute(sql, values);
         return result.affectedRows;
@@ -177,6 +190,7 @@ class Post {
 
     /**
      * שיטה למחיקת פוסט.
+     * זוהי מחיקה פיזית (Hard Delete) - מיועדת רק לבעל הפוסט.
      * @param {number} id - מזהה הפוסט למחיקה.
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
@@ -194,9 +208,10 @@ class Post {
      */
     static async isOwner(postId, userId) {
         try {
-            const [rows] = await db.query('SELECT user_id FROM posts WHERE id = ?', [postId]);
+            // הוספנו is_deleted = FALSE כדי לוודא שהפוסט לא מחוק
+            const [rows] = await db.query('SELECT user_id FROM posts WHERE id = ? AND is_deleted = FALSE', [postId]);
             if (rows.length === 0) {
-                return false; // הפוסט לא נמצא
+                return false; // הפוסט לא נמצא או מחוק
             }
             return rows[0].user_id === userId;
         } catch (error) {
@@ -212,7 +227,7 @@ class Post {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async incrementLikeCount(postId, amount = 1) {
-        const sql = `UPDATE posts SET like_count = like_count + ? WHERE id = ?`;
+        const sql = `UPDATE posts SET like_count = like_count + ? WHERE id = ? AND is_deleted = FALSE`;
         const [result] = await db.execute(sql, [amount, postId]);
         console.log(`Incrementing like_count for post ID: ${postId}, amount: ${amount}`);
         console.log(`Incremented like_count, affected rows: ${result.affectedRows}`);
@@ -226,7 +241,8 @@ class Post {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async decrementLikeCount(postId, amount = 1) {
-        const sql = `UPDATE posts SET like_count = like_count - ? WHERE id = ?`;
+        // לוודא ש-like_count לא יורד מתחת ל-0
+        const sql = `UPDATE posts SET like_count = GREATEST(0, like_count - ?) WHERE id = ? AND is_deleted = FALSE`;
         const [result] = await db.execute(sql, [amount, postId]);
         console.log(`Decrementing like_count for post ID: ${postId}, amount: ${amount}`);
         console.log(`Decremented like_count, affected rows: ${result.affectedRows}`);
@@ -239,7 +255,7 @@ class Post {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async incrementCommentCount(postId) {
-        const sql = `UPDATE posts SET comment_count = comment_count + 1 WHERE id = ?`;
+        const sql = `UPDATE posts SET comment_count = comment_count + 1 WHERE id = ? AND is_deleted = FALSE`;
         const [result] = await db.execute(sql, [postId]);
         return result.affectedRows;
     }
@@ -250,10 +266,12 @@ class Post {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async decrementCommentCount(postId) {
-        const sql = `UPDATE posts SET comment_count = comment_count - 1 WHERE id = ? AND comment_count > 0`;
+        // לוודא ש-comment_count לא יורד מתחת ל-0
+        const sql = `UPDATE posts SET comment_count = GREATEST(0, comment_count - 1) WHERE id = ? AND is_deleted = FALSE`;
         const [result] = await db.execute(sql, [postId]);
         return result.affectedRows;
     }
+
     /**
      * שליפת פוסטים לפי מזהה קטגוריה.
      * @param {number} categoryId - מזהה הקטגוריה.
@@ -269,6 +287,7 @@ class Post {
                 p.like_count,
                 p.comment_count,
                 p.created_at,
+                p.is_deleted, -- הוספה: שדה is_deleted
                 u.name AS user_name,
                 p.user_id AS firebase_uid,
                 l.name AS location_name,
@@ -284,7 +303,7 @@ class Post {
             LEFT JOIN
                 categories c ON p.category_id = c.id
             WHERE
-                p.category_id = ? AND p.is_deleted = false
+                p.category_id = ? AND p.is_deleted = FALSE -- רק פוסטים שאינם מחוקים
             ORDER BY
                 p.created_at DESC
         `;
@@ -297,9 +316,14 @@ class Post {
             created_at: row.created_at ? new Date(row.created_at).toISOString() : null
         }));
     }
-    // מחיקה רכה (soft delete)
+
+    /**
+     * מחיקה רכה (soft delete) של פוסט.
+     * @param {number} id - מזהה הפוסט למחיקה רכה.
+     * @returns {Promise<number>} - מספר השורות שהושפעו.
+     */
     static async softDelete(id) {
-        const sql = `UPDATE posts SET is_deleted = true WHERE id = ?`;
+        const sql = `UPDATE posts SET is_deleted = TRUE WHERE id = ? AND is_deleted = FALSE`; // וודא שרק פוסטים פעילים מסומנים כמחוקים
         const [result] = await db.execute(sql, [id]);
         return result.affectedRows;
     }

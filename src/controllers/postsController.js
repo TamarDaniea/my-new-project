@@ -1,7 +1,7 @@
 const Post = require('../models/Post');
 const Category = require('../models/Category');
-const User = require('../models/User'); // ייבוא מודל User לבדיקת תפקיד אדמין וקיום משתמש
-const Location = require('../models/Location'); // ייבוא מודל Location
+const User = require('../models/User');
+const Location = require('../models/Location');
 
 const postsController = {
 
@@ -19,28 +19,15 @@ const postsController = {
     // פונקציה ליצירת פוסט חדש
     createPost: async (req, res) => {
         try {
-            // שליפת הנתונים מה-body של הבקשה.
-            // אין צורך לשלוף user_id מכיוון שהוא נלקח מ-req.user.
             const { title, content, images, category_id, location_id } = req.body;
 
-            // --- תיקון 1: שינוי תנאי האימות לשדות חובה ---
-            // היגיון: על פי המפרט, title, content ו-category_id הם שדות חובה.
-            // שדה 'images' נתון כמערך. הנחה היא שמערך ריק הוא תקין (כלומר, אין תמונות).
-            // לכן, הסרנו את הבדיקה images.length === 0 מהתנאי של "חסרים שדות חובה".
-            // בנוסף, ודאנו ש-images, אם קיים, הוא אכן מערך.
             if (!title || !content || !category_id || (images !== undefined && !Array.isArray(images))) {
-                console.log('Missing fields for post creation:', { title, content, images, category_id }); // לוג מפורט יותר
+                console.log('Missing fields for post creation:', { title, content, images, category_id });
                 return res.status(400).json({ message: req.t('posts.missing_fields') });
             }
 
-            // --- תיקון 2: ודא ש-images מוגדר תמיד כמערך (אפילו אם לא נשלח או נשלח כ-null) ---
-            // היגיון: אם 'images' לא נשלח בכלל (undefined) או נשלח כ-null, אנו רוצים לוודא
-            // שהוא נשמר במסד הנתונים כמערך ריק, כדי למנוע שגיאות SQL או בעיות עקביות.
-            // אם הוא כבר נשלח כמערך תקין, הוא יישאר כמות שהוא.
             const finalImages = Array.isArray(images) ? images : [];
 
-
-            // ודא שה-category_id מתאים לקטגוריה קיימת מסוג 'post'
             const category = await Category.getById(category_id);
             if (!category) {
                 return res.status(404).json({ message: req.t('posts.category_not_found', { id: category_id }) });
@@ -49,22 +36,16 @@ const postsController = {
                 return res.status(400).json({ message: req.t('posts.invalid_category_type', { id: category_id }) });
             }
 
-            // --- תיקון 3: קבלת user_id מ-req.user בצורה בטוחה יותר ---
-            // היגיון: המידלוואר authenticate (או fakeAuth) אמור תמיד למלא את req.user.
-            // נפיל שגיאה אם user_id אינו זמין, במקום להשתמש ב-'test_uid'.
-            // זה חשוב במיוחד ב-production.
             const user_id = req.user && req.user.firebase_uid;
             if (!user_id) {
-                return res.status(401).json({ message: req.t('posts.unauthorized_user_id') }); // הודעה חדשה
+                return res.status(401).json({ message: req.t('posts.unauthorized_user_id') });
             }
 
-            // ודא שהמשתמש קיים במסד הנתונים
             const userExists = await User.getById(user_id);
             if (!userExists) {
                 return res.status(404).json({ message: req.t('posts.user_not_found', { id: user_id }) });
             }
 
-            // טיפול ב-location_id (אופציונלי)
             let finalLocationId = null;
             if (location_id) {
                 const locationExists = await Location.getById(location_id);
@@ -74,17 +55,15 @@ const postsController = {
                 finalLocationId = location_id;
             }
 
-            // בניית אובייקט הנתונים לפוסט החדש
             const postData = {
                 title,
                 content,
-                images: finalImages, // השתמש ב-finalImages כדי להבטיח שהוא מערך
+                images: finalImages,
                 user_id,
                 category_id,
                 location_id: finalLocationId
             };
 
-            // יצירת הפוסט במסד הנתונים
             const newPost = await Post.create(postData);
             res.status(201).json({ message: req.t('posts.create_success'), post: newPost });
 
@@ -96,7 +75,7 @@ const postsController = {
 
     // פונקציה לקבלת פוסט לפי ID
     getPostById: async (req, res) => {
-        console.log('Current user (getPostById):', req.user); // לוג נוסף לעזרה בניפוי באגים
+        console.log('Current user (getPostById):', req.user);
 
         try {
             const post = await Post.getById(req.params.id);
@@ -114,44 +93,74 @@ const postsController = {
     updatePost: async (req, res) => {
         try {
             const { id } = req.params;
-            const postData = req.body;
+            const { title, content, images, category_id, location_id } = req.body; // שליפת שדות ספציפיים
+
             const userId = req.user ? req.user.firebase_uid : null;
 
             if (!userId) {
                 return res.status(401).json({ message: req.t('posts.unauthorized') });
             }
 
-            // בדיקת אם המשתמש הוא אדמין
             const user = await User.getById(userId);
             const isAdmin = user && user.role === 'admin';
 
-            // בדיקת בעלות על הפוסט
+            // בדיקה אם הפוסט קיים ולא מחוק לפני בדיקת בעלות
+            const existingPost = await Post.getById(id);
+            if (!existingPost) {
+                return res.status(404).json({ message: req.t('posts.not_found') });
+            }
+            // אם הפוסט נמצא אבל מסומן כמחוק, עדיין לא ניתן לעדכן אותו
+            if (existingPost.is_deleted) {
+                return res.status(404).json({ message: req.t('posts.already_deleted') });
+            }
+
             const isOwner = await Post.isOwner(id, userId);
 
-            // אם המשתמש אינו בעל הפוסט ואינו אדמין, אין לו הרשאה לעדכן
             if (!isOwner && !isAdmin) {
                 return res.status(403).json({ message: req.t('posts.forbidden_update') });
             }
 
-            // אימות קטגוריה אם סופקה לעדכון
-            if (postData.category_id) {
-                const category = await Category.getById(postData.category_id);
+            // בניית אובייקט עם השדות שרוצים לעדכן בלבד
+            const postDataToUpdate = {};
+            if (title !== undefined) postDataToUpdate.title = title;
+            if (content !== undefined) postDataToUpdate.content = content;
+            if (images !== undefined) {
+                // ודא ש-images הוא מערך
+                if (!Array.isArray(images)) {
+                    return res.status(400).json({ message: req.t('posts.invalid_images_format') });
+                }
+                postDataToUpdate.images = images;
+            }
+            // אם category_id נשלח, ודא שהוא תקין
+            if (category_id !== undefined) {
+                const category = await Category.getById(category_id);
                 if (!category || category.type !== 'post') {
                     return res.status(400).json({ message: req.t('posts.invalid_category_update') });
                 }
+                postDataToUpdate.category_id = category_id;
             }
-
-            // אימות מיקום אם סופק לעדכון
-            if (postData.location_id) {
-                const locationExists = await Location.getById(postData.location_id);
-                if (!locationExists) {
-                    return res.status(404).json({ message: req.t('posts.invalid_location_update') });
+            // אם location_id נשלח, ודא שהוא תקין
+            if (location_id !== undefined) {
+                if (location_id !== null) { // אם לא null, ודא שהמיקום קיים
+                    const locationExists = await Location.getById(location_id);
+                    if (!locationExists) {
+                        return res.status(404).json({ message: req.t('posts.invalid_location_update') });
+                    }
                 }
+                postDataToUpdate.location_id = location_id;
             }
 
-            const affectedRows = await Post.update(id, postData);
+            // אם אין שדות לעדכון, החזר 400
+            if (Object.keys(postDataToUpdate).length === 0) {
+                return res.status(400).json({ message: req.t('posts.no_fields_to_update') });
+            }
+
+            const affectedRows = await Post.update(id, postDataToUpdate);
             if (affectedRows === 0) {
-                return res.status(404).json({ message: req.t('posts.update_no_change') });
+                // ייתכן שהפוסט לא נמצא (אבל כבר בדקנו) או שלא היו שינויים בנתונים
+                // אם existingPost נמצא ולא נמחק, אז כנראה שאין שינויים.
+                // במקרה של 0 affectedRows לאחר שעברנו את כל הבדיקות, נחזיר 200 עם הודעה שלא בוצעו שינויים
+                return res.status(200).json({ message: req.t('posts.update_no_actual_change') });
             }
 
             res.status(200).json({ message: req.t('posts.update_success') });
@@ -163,7 +172,7 @@ const postsController = {
 
     // פונקציה למחיקת פוסט
     deletePost: async (req, res) => {
-        console.log('Current user (deletePost):', req.user); // לוג נוסף לעזרה בניפוי באגים
+        console.log('Current user (deletePost):', req.user);
 
         try {
             const postId = req.params.id;
@@ -173,16 +182,13 @@ const postsController = {
                 return res.status(401).json({ message: req.t('posts.unauthorized') });
             }
 
-            // בדיקת אם המשתמש הוא אדמין
             const user = await User.getById(userId);
             const isAdmin = user && user.role === 'admin';
 
-            // בדיקת בעלות על הפוסט
-            const isOwner = await Post.isOwner(postId, userId);
-
-            // אם המשתמש אינו הבעלים ואינו אדמין, אין לו הרשאה למחוק
-            if (!isOwner && !isAdmin) {
-                return res.status(403).json({ message: req.t('posts.forbidden_delete') });
+            // בדוק אם הפוסט קיים
+            const postExists = await Post.getById(postId);
+            if (!postExists) {
+                return res.status(404).json({ message: req.t('posts.not_found') });
             }
 
             let affectedRows;
@@ -190,16 +196,24 @@ const postsController = {
             if (isAdmin) {
                 // אם אדמין – מחיקה רכה (soft delete)
                 affectedRows = await Post.softDelete(postId);
+                if (affectedRows === 0) {
+                     // אם 0, זה אומר שהפוסט כבר היה מחוק או לא נמצא (אבל postExists כבר טיפל בזה)
+                    return res.status(200).json({ message: req.t('posts.already_deleted_by_admin') });
+                }
+                res.status(200).json({ message: req.t('posts.soft_delete_success') });
+
             } else {
-                // אם הבעלים – מחיקה פיזית (hard delete)
-                affectedRows = await Post.delete(postId);
+                // אם הבעלים – בדיקת בעלות ומחיקה פיזית (hard delete)
+                const isOwner = await Post.isOwner(postId, userId);
+                if (!isOwner) {
+                    return res.status(403).json({ message: req.t('posts.forbidden_delete') });
+                }
+                affectedRows = await Post.delete(postId); // מחיקה פיזית
+                if (affectedRows === 0) {
+                    return res.status(404).json({ message: req.t('posts.not_found_for_delete') });
+                }
+                res.status(200).json({ message: req.t('posts.hard_delete_success') });
             }
-
-            if (affectedRows === 0) {
-                return res.status(404).json({ message: req.t('posts.not_found') });
-            }
-
-            res.status(200).json({ message: req.t('posts.delete_success') });
 
         } catch (error) {
             console.error('Error deleting post:', error);
@@ -240,13 +254,12 @@ const postsController = {
     // פונקציה לקבלת פוסטים לפי קטגוריה
     getPostsByCategory: async (req, res) => {
         try {
-            const { categoryId } = req.query; // קבלת categoryId מפרמטרי שאילתה (query params)
+            const { categoryId } = req.query;
 
             if (!categoryId) {
                 return res.status(400).json({ message: req.t('posts.missing_category_query') });
             }
 
-            // ודא שהקטגוריה קיימת
             const category = await Category.getById(categoryId);
             if (!category) {
                 return res.status(404).json({ message: req.t('posts.category_not_found', { id: categoryId }) });
