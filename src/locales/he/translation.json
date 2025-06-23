@@ -90,6 +90,7 @@
     "duplicate_error": "משתמש עם דוא\"ל או UID זה כבר קיים",
     "duplicate_user": "משתמש עם דוא\"ל או UID זה כבר קיים",
     "update_success": "הפרופיל עודכן בהצלחה",
+    "forbidden": "אין לך הרשאה לעדכן משתמש זה",
     "update_error": "שגיאה בעדכון פרופיל",
     "delete_success": "המשתמש נמחק בהצלחה",
     "delete_error": "שגיאה במחיקת משתמש",

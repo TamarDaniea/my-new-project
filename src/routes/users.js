@@ -8,6 +8,8 @@ const fakeAuth = require('../middlewares/fakeAuth');
 router.use((req, res, next) => {
     next();
 });
+// חיפוש משתמשים לפי שם או אמייל query – רק לאדמין
+router.get('/', fakeAuth, usersController.searchUsers);
 
 // ✅ קבלת כל המשתמשים (לשימוש אדמין)
 router.get('/', usersController.getAllUsers);

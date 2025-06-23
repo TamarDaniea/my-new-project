@@ -2,7 +2,7 @@ module.exports = (req, res, next) => {
 
     // משתמש מדומה זמני לפיתוח
     req.user = {
-        firebase_uid: 'abc1234',
+        firebase_uid: 'admin123', // או מזהה משתמש אחר לפי הצורך
          role: 'admin', // או 'user' לפי הצורך
     };
     next();

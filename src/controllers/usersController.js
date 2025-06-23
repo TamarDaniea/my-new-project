@@ -40,9 +40,10 @@ const usersController = {
 
     updateUserProfile: async (req, res) => {
         const { name, email, city } = req.body;
-        const firebase_uid = req.user?.firebase_uid;
+        const firebaseUidToUpdate = req.params.firebaseUid;
+        const currentUserUid = req.user?.firebase_uid;
 
-        if (!firebase_uid) {
+        if (!currentUserUid) {
             return res.status(401).json({ message: req.t('users.unauthorized') });
         }
 
@@ -66,7 +67,14 @@ const usersController = {
         }
 
         try {
-            const existingUser = await User.getById(firebase_uid);
+            const currentUser = await User.getById(currentUserUid);
+            const isAdmin = currentUser && currentUser.role === 'admin';
+
+            if (!isAdmin && firebaseUidToUpdate !== currentUserUid) {
+                return res.status(403).json({ message: req.t('users.forbidden_update') });
+            }
+
+            const existingUser = await User.getById(firebaseUidToUpdate);
             if (!existingUser) {
                 return res.status(404).json({ message: req.t('users.not_found_in_db') });
             }
@@ -76,12 +84,12 @@ const usersController = {
             if (email) fieldsToUpdate.email = email;
             if (city) fieldsToUpdate.city = city;
 
-            const affectedRows = await User.update(firebase_uid, fieldsToUpdate);
+            const affectedRows = await User.update(firebaseUidToUpdate, fieldsToUpdate);
             if (affectedRows === 0) {
                 return res.status(404).json({ message: req.t('users.no_changes') });
             }
 
-            const updatedUser = await User.getById(firebase_uid);
+            const updatedUser = await User.getById(firebaseUidToUpdate);
             res.status(200).json({
                 message: req.t('users.update_success'),
                 user: updatedUser
@@ -115,6 +123,29 @@ const usersController = {
         } catch (error) {
             console.error('Error fetching all users:', error);
             res.status(500).json({ message: req.t('users.fetch_all_error'), error: error.message });
+        }
+    }, searchUsers: async (req, res) => {
+        try {
+            const userId = req.user ? req.user.firebase_uid : null;
+            if (!userId) {
+                return res.status(401).json({ message: req.t('users.unauthorized') });
+            }
+
+            const user = await User.getById(userId);
+            if (!user || user.role !== 'admin') {
+                return res.status(403).json({ message: req.t('users.forbidden') });
+            }
+
+            const query = req.query.query;
+            if (!query || query.trim() === '') {
+                return res.status(400).json({ message: req.t('users.query_required') });
+            }
+
+            const results = await User.search(query.trim());
+            res.status(200).json(results);
+        } catch (error) {
+            console.error('Error searching users:', error);
+            res.status(500).json({ message: req.t('users.search_error'), error: error.message });
         }
     }
 };

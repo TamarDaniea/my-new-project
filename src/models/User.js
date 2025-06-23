@@ -94,6 +94,18 @@ class User {
             created_at: row.created_at ? new Date(row.created_at).toISOString() : null
         }));
     }
+    static async search(query) {
+        const sql = `
+        SELECT firebase_uid, name, email, role, city, created_at
+        FROM users
+       WHERE name = ? OR email = ?
+        LIMIT 20
+    `;
+        const [rows] = await db.execute(sql, [query, query]);
+        return rows;
+    }
+
+
 }
 
 module.exports = User;
