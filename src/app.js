@@ -8,7 +8,11 @@ const usersRouter = require('./routes/users');
 const postsRouter = require('./routes/posts');
 const commentsRouter = require('./routes/comments');
 const categoriesRouter = require('./routes/categories');
-const fakeAuth = require('./middlewares/fakeAuth'); // זה כבר קיים ונכון
+
+// *** ייבוא המידלווארים החדשים/מעודכנים ***
+const fakeAuth = require('./middlewares/fakeAuth'); // ה-fakeAuth המעודכן
+const adminAuth = require('./middlewares/adminAuth'); // המידלוואר החדש לבדיקת אדמין
+const authMiddleware = require('./middlewares/auth'); // ה-authMiddleware האמיתי שלך מ-Firebase
 
 // נשאיר את זה, אך יש לשקול מעבר ל-authMiddleware אמיתי
 const reportsRouter = require('./routes/reports');
@@ -28,59 +32,63 @@ require('dotenv').config(); // זה כבר קיים ונכון
 
 const app = express();
 
-// Middleware
+// Middleware כלליים
 app.use(cors()); // Enable CORS
 app.use(express.json()); // Parse JSON request bodies
+app.use(express.urlencoded({ extended: true })); // מאפשר קבלת x-www-form-urlencoded
 
-// ************** שינוי: הוספת app.use(express.urlencoded) אם נדרש (לפעמים נחוץ) **************
-app.use(express.urlencoded({ extended: true })); // מאפשר קבלת x-www-form-urlencoded - זה כבר קיים ונכון
-
+// התחברות למסד הנתונים
 connectToDatabase();
 
+// נתיב בסיסי לבדיקה
 app.get('/', (req, res) => {
     res.send('Shalom Platform Backend is running!');
 });
 
-// Routes
-// ************** שימוש ב-middleware של i18n. חשוב שזה יהיה לפני הראוטים שמשתמשים ב-req.t() **************
+// שימוש ב-middleware של i18n
+// חשוב שזה יהיה לפני הראוטים שמשתמשים ב-req.t()
 app.use(i18nextMiddleware.handle(i18n)); // זה כבר קיים ונכון
 
 // ייבוא הראוטר החדש לזמני שבת
-const shabbatTimesRouter = require('./routes/shabbatTimes'); // *** הוספה חדשה: ייבוא shabbatTimesRouter ***
+const shabbatTimesRouter = require('./routes/shabbatTimes');
+
+// *** קביעת מידלוואר האימות לשימוש בהתאם לסביבה ***
+// משתמשים ב-fakeAuth לפיתוח ובדיקות מקומיות ללא צורך ב-Firebase ID Token.
+// משתמשים ב-authMiddleware (האמיתי) לפרודקשן או בדיקות הדורשות אימות Firebase אמיתי.
+// ניתן לשנות את `process.env.NODE_ENV` בקובץ `.env` או בפקודת ההרצה (לדוגמה: `NODE_ENV=production node app.js`)
+const currentAuthMiddleware = process.env.NODE_ENV === 'production' ? authMiddleware : fakeAuth;
 
 
-// ************** שינוי/תיקון: הסרת הכפילות ב-locationsRouter **************
-// יש לבחור איזה middleware להפעיל על /api/locations. אם fakeAuth הוא כללי לכל המשתתפים, השאירו אותו.
-// אם אתם עוברים ל-authMiddleware אמיתי, סביר להניח שהוא יחליף את fakeAuth.
-app.use('/api/locations', fakeAuth, locationsRouter); // זה כבר קיים ונכון
-// app.use('/api/locations', locationsRouter); // שורה זו הוסרה כי היא כפולה ולא נכונה - זה כבר טופל
+// *** הגדרת ראוטים והחלת מידלווארים ***
 
-app.use('/api/users', fakeAuth, usersRouter); // זה כבר קיים ונכון
+// ראוטים שדורשים אימות כללי (user או admin)
+app.use('/api/locations', currentAuthMiddleware, locationsRouter);
+app.use('/api/users', currentAuthMiddleware, usersRouter);
+app.use('/api/posts', currentAuthMiddleware, postsRouter);
+app.use('/api/comments', currentAuthMiddleware, commentsRouter);
+app.use('/api/favorites', currentAuthMiddleware, favoritesRouter);
+app.use('/api/votes', currentAuthMiddleware, votesRouter);
 
-// ************** שינויים קטנים: הוספת fakeAuth לראוטים שחסר בהם **************
-app.use('/api/posts', fakeAuth, postsRouter); // **שינוי: הוספת fakeAuth**
-app.use('/api/comments', fakeAuth, commentsRouter); // **שינוי: הוספת fakeAuth**
+// ראוטים שדורשים הרשאות אדמין ספציפיות:
+// 1. ניהול קטגוריות: כל פעולות ה-CRUD על קטגוריות צריכות להיות מוגבלות לאדמין.
+app.use('/api/categories', currentAuthMiddleware, adminAuth, categoriesRouter);
 
-app.use('/api/categories', categoriesRouter); // זה כבר קיים ונכון
+// 2. טיפול בדיווחים: צפייה, עדכון סטטוס וכו' של דיווחים צריכים להיות מוגבלים לאדמין.
+// שימו לב: שיניתי את הנתיב מ-`/api` ל-`/api/reports` כדי שיהיה ספציפי וברור יותר לראוטר זה.
+app.use('/api/reports', currentAuthMiddleware, adminAuth, reportsRouter);
 
-app.use('/api', fakeAuth, reportsRouter); // **שינוי: הוספת fakeAuth**
-app.use('/api/favorites', fakeAuth, favoritesRouter); // **שינוי: הוספת fakeAuth**
 
-// ************** הוספה חדשה: ה-route עבור votes **************
-app.use('/api/votes', fakeAuth, votesRouter); // זה כבר קיים ונכון
-
-// חיבור הראוטר החדש של זמני השבת לנתיב API
-app.use('/api/shabbat-times', shabbatTimesRouter); // *** הוספה חדשה: חיבור shabbatTimesRouter ***
+// ראוטים שלא דורשים אימות (כמו זמני שבת)
+app.use('/api/shabbat-times', shabbatTimesRouter);
 
 
 // טיפול בשגיאות (אופציונלי, מומלץ - הוסף/י בסוף, לפני app.listen)
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).send('Something broke!');
+    console.error(err.stack); // הדפס את פרטי השגיאה לקונסול השרת
+    res.status(500).send('Something went wrong on the server!'); // שלח תגובת שגיאה למשתמש
 });
 
-// Start the server
-// ************** שימוש ב-config.port שלך, כפי שקיים בקוד המקורי **************
+// הפעלת השרת
 app.listen(config.port, () => {
     console.log(`Server is running on port ${config.port}`);
 });
