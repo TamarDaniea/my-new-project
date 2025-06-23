@@ -105,23 +105,33 @@ class Location {
 
     // שיטה לעדכון מיקום
     static async update(id, locationData) {
+        const allowedFields = ['name', 'description', 'address', 'images', 'category_id', 'location'];
         const fields = [];
         const values = [];
+
         for (const key in locationData) {
-            if (locationData.hasOwnProperty(key)) {
+            if (
+                locationData.hasOwnProperty(key) &&
+                allowedFields.includes(key)
+            ) {
                 fields.push(`${key} = ?`);
-                values.push(key === 'images' ? JSON.stringify(locationData[key]) : locationData[key]);
+                const value = key === 'images' || key === 'location'
+                    ? JSON.stringify(locationData[key])
+                    : locationData[key];
+                values.push(value);
             }
         }
-        if (fields.length === 0) return 0; // No fields to update
 
-        const sql = `UPDATE locations SET ${fields.join(', ')} WHERE id = ?`;
+        if (fields.length === 0) return 0; // אין שדות לעדכן
+
+        const sql = `UPDATE locations SET ${fields.join(', ')} WHERE id = ? AND is_deleted = 0` ;
         values.push(id);
         const [result] = await db.execute(sql, values);
         return result.affectedRows;
     }
 
-    // שיטה למחיקת מיקום - נשארת כפי שהיא, יעילה בזכות הגדרות ה-DB
+
+    
     static async delete(id) {
         const sql = `DELETE FROM locations WHERE id = ?`;
         const [result] = await db.execute(sql, [id]);
@@ -129,7 +139,7 @@ class Location {
     }
 
     /**
-     * פונקציה חדשה: בודקת אם משתמש מסוים הוא הבעלים של המיקום.
+     * הפונקציה בודקת אם משתמש מסוים הוא הבעלים של המיקום.
      * @param {number} locationId - מזהה המיקום.
      * @param {string} userId - ה-UID של המשתמש.
      * @returns {Promise<boolean>} - true אם המשתמש הוא הבעלים, false אחרת.
