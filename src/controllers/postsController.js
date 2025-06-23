@@ -65,6 +65,8 @@ const postsController = {
     },
 
     getPostById: async (req, res) => {
+        console.log('Current user:', req.user);
+
         try {
             const post = await Post.getById(req.params.id);
             if (!post) {
@@ -77,7 +79,7 @@ const postsController = {
         }
     },
 
-   
+
     updatePost: async (req, res) => {
         try {
             const { id } = req.params;
@@ -127,8 +129,10 @@ const postsController = {
         }
     },
 
-  
+
     deletePost: async (req, res) => {
+        console.log('Current user:', req.user);
+
         try {
             const postId = req.params.id;
             const userId = req.user ? req.user.firebase_uid : null;
@@ -144,21 +148,33 @@ const postsController = {
             // בדיקת בעלות על הפוסט
             const isOwner = await Post.isOwner(postId, userId);
 
-            // אם המשתמש אינו בעל הפוסט ואינו אדמין, אין לו הרשאה למחוק
+            // אם המשתמש אינו הבעלים ואינו אדמין, אין לו הרשאה למחוק
             if (!isOwner && !isAdmin) {
                 return res.status(403).json({ message: req.t('posts.forbidden_delete') });
             }
 
-            const affectedRows = await Post.delete(postId);
+            let affectedRows;
+
+            if (isAdmin) {
+                // אם אדמין – מחיקה רכה
+                affectedRows = await Post.softDelete(postId);
+            } else {
+                // אם הבעלים – מחיקה פיזית
+                affectedRows = await Post.delete(postId);
+            }
+
             if (affectedRows === 0) {
                 return res.status(404).json({ message: req.t('posts.not_found') });
             }
+
             res.status(200).json({ message: req.t('posts.delete_success') });
+
         } catch (error) {
             console.error('Error deleting post:', error);
             res.status(500).json({ message: req.t('posts.delete_error'), error: error.message });
         }
-    },
+    }
+    ,
 
     addLikeToPost: async (req, res) => {
         try {

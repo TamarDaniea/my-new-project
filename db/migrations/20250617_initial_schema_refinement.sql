@@ -131,3 +131,7 @@ ON DUPLICATE KEY UPDATE name=name; -- Prevents errors if these already exist
 
 ALTER TABLE users
 ADD COLUMN city VARCHAR(255);
+
+ALTER TABLE locations ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE posts ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE;

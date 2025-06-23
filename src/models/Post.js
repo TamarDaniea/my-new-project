@@ -66,37 +66,38 @@ class Post {
      */
     static async getAll() {
         const sql = `
-            SELECT
-                p.id,
-                p.title,
-                p.content,
-                p.images,
-                p.like_count,
-                p.comment_count,
-                p.created_at,
-                u.name AS user_name,
-                p.user_id AS firebase_uid,
-                l.name AS location_name,
-                l.id AS location_id,
-                c.name AS category_name,   -- הוסף/הוסיפי את שם הקטגוריה
-                c.id AS category_id         -- הוסף/הוסיפי את ID הקטגוריה
-            FROM
-                posts p
-            LEFT JOIN
-                users u ON p.user_id = u.firebase_uid
-            LEFT JOIN
-                locations l ON p.location_id = l.id
-            LEFT JOIN
-                categories c ON p.category_id = c.id -- הצטרפות לטבלת קטגוריות
-            ORDER BY
-                p.created_at DESC
-        `;
+        SELECT
+            p.id,
+            p.title,
+            p.content,
+            p.images,
+            p.like_count,
+            p.comment_count,
+            p.created_at,
+            u.name AS user_name,
+            p.user_id AS firebase_uid,
+            l.name AS location_name,
+            l.id AS location_id,
+            c.name AS category_name,
+            c.id AS category_id
+        FROM
+            posts p
+        LEFT JOIN
+            users u ON p.user_id = u.firebase_uid
+        LEFT JOIN
+            locations l ON p.location_id = l.id
+        LEFT JOIN
+            categories c ON p.category_id = c.id
+        WHERE
+            p.is_deleted = false
+        ORDER BY
+            p.created_at DESC
+    `;
         const [rows] = await db.execute(sql);
-        // חשוב לטפל ב-images: הוא נשמר כ-JSON string ב-DB
         return rows.map(row => ({
             ...row,
-            images: safeJsonParseArray(row.images), // ודא/י שה-images מומר למערך
-            created_at: row.created_at ? new Date(row.created_at).toISOString() : null // לוודא פורמט עקבי
+            images: safeJsonParseArray(row.images),
+            created_at: row.created_at ? new Date(row.created_at).toISOString() : null
         }));
     }
 
@@ -130,7 +131,7 @@ class Post {
                 locations l ON p.location_id = l.id
             LEFT JOIN
                 categories c ON p.category_id = c.id -- הצטרפות לטבלת קטגוריות
-            WHERE p.id = ?
+           WHERE p.id = ? AND p.is_deleted = false
         `;
         const [rows] = await db.execute(sql, [id]);
         if (rows[0]) {
@@ -210,7 +211,7 @@ class Post {
      * @param {number} amount - הכמות להגדיל (ברירת מחדל 1).
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
-    static async incrementLikeCount(postId , amount = 1) {
+    static async incrementLikeCount(postId, amount = 1) {
         const sql = `UPDATE posts SET like_count = like_count + ? WHERE id = ?`;
         const [result] = await db.execute(sql, [amount, postId]);
         console.log(`Incrementing like_count for post ID: ${postId}, amount: ${amount}`);
@@ -224,7 +225,7 @@ class Post {
      * @param {number} amount - הכמות להפחית (ברירת מחדל 1).
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
-    static async decrementLikeCount(postId , amount = 1) {
+    static async decrementLikeCount(postId, amount = 1) {
         const sql = `UPDATE posts SET like_count = like_count - ? WHERE id = ?`;
         const [result] = await db.execute(sql, [amount, postId]);
         console.log(`Decrementing like_count for post ID: ${postId}, amount: ${amount}`);
@@ -283,7 +284,7 @@ class Post {
             LEFT JOIN
                 categories c ON p.category_id = c.id
             WHERE
-                p.category_id = ?
+                p.category_id = ? AND p.is_deleted = false
             ORDER BY
                 p.created_at DESC
         `;
@@ -296,6 +297,13 @@ class Post {
             created_at: row.created_at ? new Date(row.created_at).toISOString() : null
         }));
     }
+    // מחיקה רכה (soft delete)
+    static async softDelete(id) {
+        const sql = `UPDATE posts SET is_deleted = true WHERE id = ?`;
+        const [result] = await db.execute(sql, [id]);
+        return result.affectedRows;
+    }
+
 }
 
 module.exports = Post;

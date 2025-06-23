@@ -125,28 +125,37 @@ const locationsController = {
                 return res.status(401).json({ message: req.t('locations.unauthorized') });
             }
 
-            // בדיקת אם המשתמש הוא אדמין
             const user = await User.getById(userId);
             const isAdmin = user && user.role === 'admin';
-
-            // בדיקת בעלות על המיקום
             const isOwner = await Location.isOwner(locationId, userId);
 
-            // אם המשתמש אינו בעל המיקום ואינו אדמין, אין לו הרשאה למחוק
+            // אם המשתמש לא אדמין ולא הבעלים – אין הרשאה
             if (!isOwner && !isAdmin) {
                 return res.status(403).json({ message: req.t('locations.forbidden_delete') });
             }
 
-            const affectedRows = await Location.delete(locationId);
+            let affectedRows;
+
+            if (isAdmin) {
+                // אם אדמין – מחיקה רכה
+                affectedRows = await Location.softDelete(locationId);
+            } else {
+                // אם הבעלים – מחיקה פיזית
+                affectedRows = await Location.delete(locationId);
+            }
+
             if (affectedRows === 0) {
                 return res.status(404).json({ message: req.t('locations.not_found') });
             }
+
             res.status(200).json({ message: req.t('locations.delete_success') });
+
         } catch (error) {
             console.error('Error deleting location:', error);
             res.status(500).json({ message: req.t('locations.delete_error'), error: error.message });
         }
     },
+
 
     // הוספת לייק למיקום (מעדכן מונה בלבד)
     addLikeToLocation: async (req, res) => {

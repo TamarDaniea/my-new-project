@@ -90,7 +90,7 @@ class Location {
                 categories c ON l.category_id = c.id
             LEFT JOIN
                 users u ON l.user_id = u.firebase_uid
-            WHERE l.id = ?
+            WHERE l.id = ? AND l.is_deleted = false
         `;
         const [rows] = await db.execute(sql, [id]);
         if (rows[0]) {
@@ -171,7 +171,7 @@ class Location {
         const sql = `UPDATE locations SET like_count = like_count - ? WHERE id = ?`;
         const [result] = await db.execute(sql, [amount, locationId]);
         console.log(`Decrementing like_count for location ID: ${locationId}, amount: ${amount}`);
-        console.        console.log(`Decremented like_count, affected rows: ${result.affectedRows}`);
+        console.console.log(`Decremented like_count, affected rows: ${result.affectedRows}`);
         return result.affectedRows;
     }
 
@@ -212,7 +212,7 @@ class Location {
                 categories c ON l.category_id = c.id
             LEFT JOIN
                 users u ON l.user_id = u.firebase_uid
-            WHERE 1=1
+             WHERE l.is_deleted = false
         `;
         const params = [];
 
@@ -255,6 +255,13 @@ class Location {
             created_at: row.created_at ? new Date(row.created_at).toISOString() : null
         }));
     }
+    // מחיקה רכה (רק שינוי is_deleted ל-true)
+    static async softDelete(id) {
+        const sql = `UPDATE locations SET is_deleted = true WHERE id = ?`;
+        const [result] = await db.execute(sql, [id]);
+        return result.affectedRows;
+    }
+
 }
 
 module.exports = Location;
