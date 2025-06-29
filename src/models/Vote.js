@@ -67,7 +67,7 @@ const Vote = {
                     'INSERT INTO votes (user_id, item_type, item_id, value) VALUES (?, ?, ?, ?)',
                     [user_id, item_type, item_id, value]
                 );
-                if (insertResult.insertId) {
+                if (insertResult.affectedRows > 0) {
                     delta_like_count = 1; // לייק חדש, המונה עולה ב-1
                     action = 'inserted';
                 }
@@ -102,7 +102,7 @@ const Vote = {
                     'INSERT INTO votes (user_id, item_type, item_id, value) VALUES (?, ?, ?, ?)',
                     [user_id, item_type, item_id, value]
                 );
-                if (insertResult.insertId) {
+                if (insertResult.affectedRows > 0) {
                     delta_like_count = -1; // דיסלייק חדש, המונה יורד ב-1
                     action = 'inserted';
                 }

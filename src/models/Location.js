@@ -181,7 +181,7 @@ class Location {
         const sql = `UPDATE locations SET like_count = like_count - ? WHERE id = ?`;
         const [result] = await db.execute(sql, [amount, locationId]);
         console.log(`Decrementing like_count for location ID: ${locationId}, amount: ${amount}`);
-        console.console.log(`Decremented like_count, affected rows: ${result.affectedRows}`);
+        console.log(`Decremented like_count, affected rows: ${result.affectedRows}`);
         return result.affectedRows;
     }
 

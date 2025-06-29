@@ -106,5 +106,16 @@
     "not_found_in_db": "המשתמש לא נמצא במסד הנתונים",
     "no_changes": "המשתמש לא נמצא או שלא בוצעו שינויים",
     "uid_required": "מזהה משתמש נדרש"
+  },
+  
+  "votes": {
+    "vote_added": "הצבעה נוספה בהצלחה",
+    "vote_removed": "הצבעה בוטלה",
+    "vote_updated": "הצבעה עודכנה",
+    "duplicate_vote": "כבר הצבעת על זה",
+    "no_action": "לא בוצעה פעולה",
+    "invalid_input": "קלט לא תקין",
+    "item_not_found": "הפריט לא נמצא",
+    "error": "שגיאה פנימית"
   }
 }

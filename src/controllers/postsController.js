@@ -221,35 +221,35 @@ const postsController = {
         }
     },
 
-    // פונקציה להוספת לייק לפוסט
-    addLikeToPost: async (req, res) => {
-        try {
-            const { postId } = req.params;
-            const affectedRows = await Post.incrementLikeCount(postId);
-            if (affectedRows === 0) {
-                return res.status(404).json({ message: req.t('posts.like_increment_failed') });
-            }
-            res.status(200).json({ message: req.t('posts.like_added') });
-        } catch (error) {
-            console.error('Error adding like to post:', error);
-            res.status(500).json({ message: req.t('posts.like_add_error'), error: error.message });
-        }
-    },
+    // // פונקציה להוספת לייק לפוסט
+    // addLikeToPost: async (req, res) => {
+    //     try {
+    //         const { postId } = req.params;
+    //         const affectedRows = await Post.incrementLikeCount(postId);
+    //         if (affectedRows === 0) {
+    //             return res.status(404).json({ message: req.t('posts.like_increment_failed') });
+    //         }
+    //         res.status(200).json({ message: req.t('posts.like_added') });
+    //     } catch (error) {
+    //         console.error('Error adding like to post:', error);
+    //         res.status(500).json({ message: req.t('posts.like_add_error'), error: error.message });
+    //     }
+    // },
 
-    // פונקציה להסרת לייק מפוסט
-    removeLikeFromPost: async (req, res) => {
-        try {
-            const { postId } = req.params;
-            const affectedRows = await Post.decrementLikeCount(postId);
-            if (affectedRows === 0) {
-                return res.status(404).json({ message: req.t('posts.like_decrement_failed') });
-            }
-            res.status(200).json({ message: req.t('posts.like_removed') });
-        } catch (error) {
-            console.error('Error removing like from post:', error);
-            res.status(500).json({ message: req.t('posts.like_remove_error'), error: error.message });
-        }
-    },
+    // // פונקציה להסרת לייק מפוסט
+    // removeLikeFromPost: async (req, res) => {
+    //     try {
+    //         const { postId } = req.params;
+    //         const affectedRows = await Post.decrementLikeCount(postId);
+    //         if (affectedRows === 0) {
+    //             return res.status(404).json({ message: req.t('posts.like_decrement_failed') });
+    //         }
+    //         res.status(200).json({ message: req.t('posts.like_removed') });
+    //     } catch (error) {
+    //         console.error('Error removing like from post:', error);
+    //         res.status(500).json({ message: req.t('posts.like_remove_error'), error: error.message });
+    //     }
+    // },
 
     // פונקציה לקבלת פוסטים לפי קטגוריה
     getPostsByCategory: async (req, res) => {

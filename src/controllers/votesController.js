@@ -4,7 +4,10 @@ const Location = require('../models/Location');
 const Post = require('../models/Post');
 
 const votesController = {
+
     addOrUpdateVote: async (req, res) => {
+      
+
         try {
             const { item_type, item_id, value } = req.body;
             const user_id = req.user.firebase_uid; // מגיע מה-authMiddleware
@@ -56,8 +59,8 @@ const votesController = {
                 if (delta_like_count > 0) {
                     // וודא ש-targetModel.incrementLikeCount היא פונקציה
                     if (typeof targetModel.incrementLikeCount !== 'function') {
-                         console.error(`Error: targetModel.incrementLikeCount is not a function for ${item_type}.`); // <--- חובה
-                         return res.status(500).json({ message: req.t('votes.error'), error: 'Model incrementLikeCount method missing.' });
+                        console.error(`Error: targetModel.incrementLikeCount is not a function for ${item_type}.`); // <--- חובה
+                        return res.status(500).json({ message: req.t('votes.error'), error: 'Model incrementLikeCount method missing.' });
                     }
                     await targetModel.incrementLikeCount(item_id, delta_like_count);
                     console.log(`Successfully incremented like count by ${delta_like_count} for ${item_type} ID ${item_id}`); // <--- חדש
@@ -86,14 +89,15 @@ const votesController = {
                     message = req.t('votes.vote_removed');
                     break;
                 case 'no_change': // אם ההצבעה הייתה זהה לערך הקיים
-                    message = req.t('votes.no_change');
+                    message = req.t('votes.duplicate_vote');
                     break;
                 case 'no_action': // אם ערך ה-value הוא 0 ואין הצבעה קיימת
                     message = req.t('votes.no_action');
                     break;
                 default:
-                    message = req.t('votes.error'); // זה לא אמור לקרות אם ה-action מוגדר נכון
+                    message = req.t('votes.error');
             }
+
 
             console.log('Sending successful response:', message); // <--- חדש
             res.status(200).json({ message });
@@ -102,12 +106,13 @@ const votesController = {
             console.error('Error details:');
             console.error('  Message:', error.message);
             console.error('  Stack:', error.stack);
+            console.error('Full error object:', error);
             // אם זו שגיאת SQL, תהיה לה גם תכונת `code` או `errno`
             if (error.code) console.error('  SQL Error Code:', error.code);
             if (error.errno) console.error('  SQL Error Number:', error.errno);
             if (error.sqlMessage) console.error('  SQL Message:', error.sqlMessage);
             if (error.sql) console.error('  SQL Query:', error.sql); // <--- זה ממש חשוב אם זו שגיאת SQL
-            
+
             res.status(500).json({ message: req.t('votes.error'), error: error.message });
         } finally {
             console.log('--- End addOrUpdateVote (finally block) ---'); // <--- חדש

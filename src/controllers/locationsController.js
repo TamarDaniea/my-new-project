@@ -157,35 +157,35 @@ const locationsController = {
     },
 
 
-    // הוספת לייק למיקום (מעדכן מונה בלבד)
-    addLikeToLocation: async (req, res) => {
-        try {
-            const { locationId } = req.params;
-            const affectedRows = await Location.incrementLikeCount(locationId);
-            if (affectedRows === 0) {
-                return res.status(404).json({ message: req.t('locations.not_found') });
-            }
-            res.status(200).json({ message: req.t('locations.like_added') });
-        } catch (error) {
-            console.error('Error adding like to location:', error);
-            res.status(500).json({ message: req.t('locations.like_add_error'), error: error.message });
-        }
-    },
+    // // הוספת לייק למיקום (מעדכן מונה בלבד)
+    // addLikeToLocation: async (req, res) => {
+    //     try {
+    //         const { locationId } = req.params;
+    //         const affectedRows = await Location.incrementLikeCount(locationId);
+    //         if (affectedRows === 0) {
+    //             return res.status(404).json({ message: req.t('locations.not_found') });
+    //         }
+    //         res.status(200).json({ message: req.t('locations.like_added') });
+    //     } catch (error) {
+    //         console.error('Error adding like to location:', error);
+    //         res.status(500).json({ message: req.t('locations.like_add_error'), error: error.message });
+    //     }
+    // },
 
-    // הסרת לייק ממיקום (מעדכן מונה בלבד)
-    removeLikeFromLocation: async (req, res) => {
-        try {
-            const { locationId } = req.params;
-            const affectedRows = await Location.decrementLikeCount(locationId);
-            if (affectedRows === 0) {
-                return res.status(404).json({ message: req.t('locations.like_remove_error') });
-            }
-            res.status(200).json({ message: req.t('locations.like_removed') });
-        } catch (error) {
-            console.error('Error removing like from location:', error);
-            res.status(500).json({ message: req.t('locations.like_remove_error'), error: error.message });
-        }
-    }
+    // // הסרת לייק ממיקום (מעדכן מונה בלבד)
+    // removeLikeFromLocation: async (req, res) => {
+    //     try {
+    //         const { locationId } = req.params;
+    //         const affectedRows = await Location.decrementLikeCount(locationId);
+    //         if (affectedRows === 0) {
+    //             return res.status(404).json({ message: req.t('locations.like_remove_error') });
+    //         }
+    //         res.status(200).json({ message: req.t('locations.like_removed') });
+    //     } catch (error) {
+    //         console.error('Error removing like from location:', error);
+    //         res.status(500).json({ message: req.t('locations.like_remove_error'), error: error.message });
+    //     }
+    // }
 };
 
 module.exports = locationsController;

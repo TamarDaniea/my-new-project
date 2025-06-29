@@ -21,11 +21,11 @@ router.put('/:id', fakeAuth, locationsController.updateLocation);
 // DELETE location by ID - דורש אימות משתמש
 router.delete('/:id', fakeAuth, locationsController.deleteLocation);
 
-// POST add like to location (simple increment/decrement) - דורש אימות משתמש
-router.post('/:locationId/like', fakeAuth, locationsController.addLikeToLocation);
+// // POST add like to location (simple increment/decrement) - דורש אימות משתמש
+// router.post('/:locationId/like', fakeAuth, locationsController.addLikeToLocation);
 
-// DELETE remove like from location - דורש אימות משתמש
-router.delete('/:locationId/like', fakeAuth, locationsController.removeLikeFromLocation);
+// // DELETE remove like from location - דורש אימות משתמש
+// router.delete('/:locationId/like', fakeAuth, locationsController.removeLikeFromLocation);
 
 
 module.exports = router;

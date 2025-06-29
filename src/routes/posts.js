@@ -19,10 +19,12 @@ router.put('/:id', fakeAuth, postsController.updatePost); // שינוי כאן
 // DELETE post by ID (דורש אימות)
 router.delete('/:id', fakeAuth, postsController.deletePost); // שינוי כאן
 
-// POST add like to post (דורש אימות)
-router.post('/:postId/like', fakeAuth, postsController.addLikeToPost); // שינוי כאן
-// DELETE remove like from post (דורש אימות)
-router.delete('/:postId/like', fakeAuth, postsController.removeLikeFromPost); // שינוי כאן
+// // POST add like to post (דורש אימות)
+// router.post('/:postId/like', fakeAuth, postsController.addLikeToPost); // שינוי כאן
+// // DELETE remove like from post (דורש אימות)
+// router.delete('/:postId/like', fakeAuth, postsController.removeLikeFromPost); // שינוי כאן
+
+
 
 // --- Routes for comments on posts ---
 // POST add a comment to a specific post (דורש אימות)
