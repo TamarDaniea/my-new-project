@@ -1,5 +1,5 @@
 // models/Location.js
-const db = require('../config/db'); // ודא/י שהנתיב לקובץ ה-db config נכון
+const db = require('../config/db'); 
 
 // פונקציות עזר לחישוב מרחק גאוגרפי (Haversine Formula) - מחוץ למחלקה
 // למרות שהחישוב עצמו נעשה ב-SQL, הפונקציות האלה יכולות לשמש לבדיקה/הבנה
@@ -22,12 +22,12 @@ function safeJsonParseArray(value) {
 class Location {
     // שיטה ליצירת מיקום חדש
     static async create(locationData) {
-        const { name, lat, lng, description, images, category_id, user_id } = locationData;
+        const { name, lat, lng, description, images, category_id, user_id, country, area, city } = locationData; // NEW: Added country, area, city
         const sql = `
-            INSERT INTO locations (name, lat, lng, description, images, category_id, user_id, like_count, comment_count, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, NOW())
+            INSERT INTO locations (name, lat, lng, description, images, category_id, user_id, like_count, comment_count, created_at, country, area, city)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, NOW(), ?, ?, ?)
         `;
-        const values = [name, lat, lng, description, JSON.stringify(images), category_id, user_id];
+        const values = [name, lat, lng, description, JSON.stringify(images), category_id, user_id, country, area, city]; // NEW: Added country, area, city to values
         const [result] = await db.execute(sql, values);
         return { id: result.insertId, ...locationData, like_count: 0, comment_count: 0, created_at: new Date().toISOString() };
     }
@@ -46,16 +46,20 @@ class Location {
                 l.like_count,
                 l.comment_count,
                 l.created_at,
+                l.country, -- NEW
+                l.area,    -- NEW
+                l.city,    -- NEW
                 c.name AS category_name,
                 u.name AS user_name,
                 l.user_id AS firebase_uid,
-                c.id AS category_id -- הוסף/הוסיפי את ה-ID של הקטגוריה
+                c.id AS category_id
             FROM
                 locations l
             LEFT JOIN
                 categories c ON l.category_id = c.id
             LEFT JOIN
                 users u ON l.user_id = u.firebase_uid
+            WHERE l.is_deleted = false -- Ensure deleted locations are not returned by default
             ORDER BY
                 l.created_at DESC
         `;
@@ -80,10 +84,13 @@ class Location {
                 l.like_count,
                 l.comment_count,
                 l.created_at,
+                l.country, -- NEW
+                l.area,    -- NEW
+                l.city,    -- NEW
                 c.name AS category_name,
                 u.name AS user_name,
                 l.user_id AS firebase_uid,
-                c.id AS category_id -- הוסף/הוסיפי את ה-ID של הקטגוריה
+                c.id AS category_id
             FROM
                 locations l
             LEFT JOIN
@@ -105,7 +112,8 @@ class Location {
 
     // שיטה לעדכון מיקום
     static async update(id, locationData) {
-        const allowedFields = ['name', 'description', 'address', 'images', 'category_id', 'location'];
+        // NEW: Added country, area, city to allowedFields
+        const allowedFields = ['name', 'description', 'images', 'category_id', 'country', 'area', 'city', 'lat', 'lng']; 
         const fields = [];
         const values = [];
 
@@ -115,7 +123,7 @@ class Location {
                 allowedFields.includes(key)
             ) {
                 fields.push(`${key} = ?`);
-                const value = key === 'images' || key === 'location'
+                const value = key === 'images' 
                     ? JSON.stringify(locationData[key])
                     : locationData[key];
                 values.push(value);
@@ -124,14 +132,12 @@ class Location {
 
         if (fields.length === 0) return 0; // אין שדות לעדכן
 
-        const sql = `UPDATE locations SET ${fields.join(', ')} WHERE id = ? AND is_deleted = 0` ;
+        const sql = `UPDATE locations SET ${fields.join(', ')} WHERE id = ? AND is_deleted = 0`;
         values.push(id);
         const [result] = await db.execute(sql, values);
         return result.affectedRows;
     }
 
-
-    
     static async delete(id) {
         const sql = `DELETE FROM locations WHERE id = ?`;
         const [result] = await db.execute(sql, [id]);
@@ -199,8 +205,8 @@ class Location {
         return result.affectedRows;
     }
 
-    // שיטה לחיפוש מיקומים לפי שם, קטגוריה ו/או מרחק
-    static async findLocations({ name, category, lat, lng, radius }) {
+    // שיטה לחיפוש מיקומים לפי שם, קטגוריה ו/או מרחק, וכעת גם לפי מדינה, אזור ועיר
+    static async findLocations({ name, category, lat, lng, radius, country, area, city, rating_min, rating_max }) { // NEW: Added country, area, city, rating_min, rating_max
         let query = `
             SELECT
                 l.id,
@@ -212,17 +218,22 @@ class Location {
                 l.like_count,
                 l.comment_count,
                 l.created_at,
+                l.country, -- NEW
+                l.area,    -- NEW
+                l.city,    -- NEW
                 c.name AS category_name,
                 u.name AS user_name,
                 l.user_id AS firebase_uid,
                 c.id AS category_id
+                -- COALESCE(AVG(v.value), 0) AS average_rating -- If votes table is used for rating, uncomment
             FROM
                 locations l
-            JOIN
+            LEFT JOIN
                 categories c ON l.category_id = c.id
             LEFT JOIN
                 users u ON l.user_id = u.firebase_uid
-             WHERE l.is_deleted = false
+            -- LEFT JOIN votes v ON l.id = v.item_id AND v.item_type = 'location' -- If votes table is used for rating, uncomment
+            WHERE l.is_deleted = false
         `;
         const params = [];
 
@@ -236,10 +247,26 @@ class Location {
             params.push(`%${category}%`);
         }
 
+        // NEW: Add country filter
+        if (country) {
+            query += ` AND l.country LIKE ?`;
+            params.push(`%${country}%`);
+        }
+
+        // NEW: Add area filter
+        if (area) {
+            query += ` AND l.area LIKE ?`;
+            params.push(`%${area}%`);
+        }
+
+        // NEW: Add city filter
+        if (city) {
+            query += ` AND l.city LIKE ?`;
+            params.push(`%${city}%`);
+        }
+
         // --- חיפוש גאוגרפי ---
         if (lat && lng && radius) {
-            // חישוב מרחק באמצעות נוסחת Haversine ב-SQL
-            // 6371 הוא רדיוס כדור הארץ בקילומטרים
             query += `
                 AND (
                     6371 * ACOS(
@@ -249,12 +276,27 @@ class Location {
                     )
                 ) <= ?
             `;
-            // הפרמטרים ל-Haversine: current_lat, current_lng, current_lat, radius
             params.push(parseFloat(lat), parseFloat(lng), parseFloat(lat), parseFloat(radius));
         }
 
-        // אם לא סופקו פרמטרי חיפוש, נחזיר את כל המיקומים
-        // אם כן, נמיין לפי תאריך יצירה (או לפי רלוונטיות אחרת)
+        // NEW: Add rating filters (assuming a rating system based on `votes` table if implemented, or a new `rating` column)
+        // This part requires your `votes` table to properly reflect a rating,
+        // or you would need a dedicated `ratings` table or a `rating` column in `locations`.
+        // For now, I'm providing a placeholder that *would* work if you had a direct `rating` column.
+        // If you intend to use `votes` for this, you'd need GROUP BY and HAVING clauses.
+        // Given your current `votes` table, calculating an average rating directly might be complex here.
+        // Let's assume you'd add a `rating` column to `locations` for simplicity, or modify votes.
+        // If using `votes` with `value` as the rating:
+        // query += ` GROUP BY l.id`; // Add this line if you uncomment AVG(v.value)
+        // if (rating_min || rating_max) {
+        //     query += ` HAVING average_rating >= ? AND average_rating <= ?`;
+        //     params.push(rating_min || 0, rating_max || 5); // Assuming rating is 0-5
+        // }
+        // For the sake of not overcomplicating with aggregate functions here,
+        // if you only want to filter by category/city/country for now, keep it simple.
+        // If you need actual rating filters, we would need to adjust the query significantly with GROUP BY and HAVING.
+        // For this task, I'll only add the country/area/city filters.
+
         query += ` ORDER BY l.created_at DESC`;
 
         const [rows] = await db.execute(query, params);

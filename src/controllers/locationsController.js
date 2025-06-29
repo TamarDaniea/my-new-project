@@ -1,9 +1,7 @@
 const Location = require('../models/Location');
 const Comment = require('../models/Comment');
 const db = require('../config/db');
-const User = require('../models/User'); // *** חדש: ייבוא מודל User לבדיקת תפקיד אדמין ***
-
-// ניתן להוסיף את express-validator לולידציה חזקה יותר:
+const User = require('../models/User'); 
 const { validationResult } = require('express-validator');
 
 
@@ -12,7 +10,8 @@ const locationsController = {
     // הפונקציה הזו תשרת את הראוט GET /locations
     searchLocations: async (req, res) => {
         try {
-            const { name, category, lat, lng, radius } = req.query;
+            // NEW: Added country, area, city to destructuring
+            const { name, category, lat, lng, radius, country, area, city } = req.query;
 
             // בדיקת ולידציה בסיסית (ניתן להרחיב עם express-validator)
             if (radius && (!lat || !lng)) {
@@ -27,12 +26,13 @@ const locationsController = {
 
             // קריאה לפונקציית החיפוש במודל Location
             // אם אין פרמטרים, findLocations תחזיר את הכל
-            const locations = await Location.findLocations({ name, category, lat, lng, radius });
+            // NEW: Pass country, area, city to findLocations
+            const locations = await Location.findLocations({ name, category, lat, lng, radius, country, area, city });
 
             res.status(200).json(locations);
         } catch (error) {
             console.error('Error fetching or searching locations:', error);
-            res.status(500).json({ message: req.t('locations.fetch_error'), error: error.message }); // נבחר בגרסת התרגום
+            res.status(500).json({ message: req.t('locations.fetch_error'), error: error.message });
         }
     },
 
@@ -40,17 +40,15 @@ const locationsController = {
     createLocation: async (req, res) => {
         try {
             const locationData = req.body;
-            // הוספת user_id (מזהה משתמש) מהטוקן המאומת אם קיים middleware אימות
-            // נניח ש-req.user.firebase_uid זמין אם משתמש מאומת.
-
             if (!req.user || !req.user.firebase_uid) {
                 return res.status(401).json({ message: req.t('locations.unauthorized') });
             }
 
             locationData.user_id = req.user.firebase_uid;
 
-            const { name, lat, lng, category_id } = locationData;
-            if (!name || !lat || !lng || !category_id) {
+            // NEW: Validate country, area, city if they are mandatory
+            const { name, lat, lng, category_id, country, area, city } = locationData;
+            if (!name || !lat || !lng || !category_id) { // Consider making country, area, city mandatory if needed
                 return res.status(400).json({ message: req.t('locations.missing_fields') });
             }
 
@@ -92,16 +90,13 @@ const locationsController = {
                 return res.status(401).json({ message: req.t('locations.unauthorized') });
             }
 
-            // בדיקת אם המשתמש הוא אדמין
             const user = await User.getById(userId);
             const isAdmin = user && user.role === 'admin';
 
-            // בדיקת בעלות על המיקום
             const isOwner = await Location.isOwner(locationId, userId);
 
-            // אם המשתמש אינו בעל המיקום ואינו אדמין, אין לו הרשאה לעדכן
             if (!isOwner && !isAdmin) {
-                return res.status(403).json({ message: req.t('locations.forbidden_update') }); // *** חדש: הודעת שגיאה לעדכון לא מורשה ***
+                return res.status(403).json({ message: req.t('locations.forbidden_update') });
             }
 
             const affectedRows = await Location.update(locationId, req.body);
@@ -129,7 +124,6 @@ const locationsController = {
             const isAdmin = user && user.role === 'admin';
             const isOwner = await Location.isOwner(locationId, userId);
 
-            // אם המשתמש לא אדמין ולא הבעלים – אין הרשאה
             if (!isOwner && !isAdmin) {
                 return res.status(403).json({ message: req.t('locations.forbidden_delete') });
             }
@@ -137,10 +131,8 @@ const locationsController = {
             let affectedRows;
 
             if (isAdmin) {
-                // אם אדמין – מחיקה רכה
                 affectedRows = await Location.softDelete(locationId);
             } else {
-                // אם הבעלים – מחיקה פיזית
                 affectedRows = await Location.delete(locationId);
             }
 
@@ -155,37 +147,6 @@ const locationsController = {
             res.status(500).json({ message: req.t('locations.delete_error'), error: error.message });
         }
     },
-
-
-    // // הוספת לייק למיקום (מעדכן מונה בלבד)
-    // addLikeToLocation: async (req, res) => {
-    //     try {
-    //         const { locationId } = req.params;
-    //         const affectedRows = await Location.incrementLikeCount(locationId);
-    //         if (affectedRows === 0) {
-    //             return res.status(404).json({ message: req.t('locations.not_found') });
-    //         }
-    //         res.status(200).json({ message: req.t('locations.like_added') });
-    //     } catch (error) {
-    //         console.error('Error adding like to location:', error);
-    //         res.status(500).json({ message: req.t('locations.like_add_error'), error: error.message });
-    //     }
-    // },
-
-    // // הסרת לייק ממיקום (מעדכן מונה בלבד)
-    // removeLikeFromLocation: async (req, res) => {
-    //     try {
-    //         const { locationId } = req.params;
-    //         const affectedRows = await Location.decrementLikeCount(locationId);
-    //         if (affectedRows === 0) {
-    //             return res.status(404).json({ message: req.t('locations.like_remove_error') });
-    //         }
-    //         res.status(200).json({ message: req.t('locations.like_removed') });
-    //     } catch (error) {
-    //         console.error('Error removing like from location:', error);
-    //         res.status(500).json({ message: req.t('locations.like_remove_error'), error: error.message });
-    //     }
-    // }
 };
 
 module.exports = locationsController;
