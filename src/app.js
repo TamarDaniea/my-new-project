@@ -9,6 +9,7 @@ const postsRouter = require('./routes/posts');
 const commentsRouter = require('./routes/comments');
 const categoriesRouter = require('./routes/categories');
 
+
 // *** ייבוא המידלווארים החדשים/מעודכנים ***
 const fakeAuth = require('./middlewares/fakeAuth'); // ה-fakeAuth המעודכן
 const adminAuth = require('./middlewares/adminAuth'); // המידלוואר החדש לבדיקת אדמין
@@ -23,6 +24,7 @@ const i18nextMiddleware = require('i18next-http-middleware');
 
 // ************** הוספה חדשה: ייבוא votesRouter **************
 const votesRouter = require('./routes/votes'); // זה כבר קיים ונכון
+const draftsRouter = require('./routes/drafts');
 
 // ************** הוספה חדשה: טעינת משתני סביבה (אם לא בטוח/ה ש-config.js מטפל בזה) **************
 // אם קובץ config.js שלך כבר קורא ל-dotenv.config(), שורה זו מיותרת.
@@ -68,6 +70,7 @@ app.use('/api/posts', currentAuthMiddleware, postsRouter);
 app.use('/api/comments', currentAuthMiddleware, commentsRouter);
 app.use('/api/favorites', currentAuthMiddleware, favoritesRouter);
 app.use('/api/votes', currentAuthMiddleware, votesRouter);
+app.use('/api/drafts', currentAuthMiddleware, draftsRouter);
 
 // ראוטים שדורשים הרשאות אדמין ספציפיות:
 // 1. ניהול קטגוריות: כל פעולות ה-CRUD על קטגוריות צריכות להיות מוגבלות לאדמין.

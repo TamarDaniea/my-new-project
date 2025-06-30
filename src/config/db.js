@@ -10,7 +10,8 @@ const pool = mysql.createPool({
     database: process.env.DB_NAME || 'shalom_platform_db', // שנה/י זאת לשם מסד הנתונים שלך
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
+    queueLimit: 0,
+    multipleStatements: true
 });
 
 // Test the database connection

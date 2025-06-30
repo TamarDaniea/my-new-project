@@ -1,3 +1,4 @@
+
 -- db/migrations/20250617_initial_schema_refinement.sql
 
 -- Ensure we are using the correct database
@@ -10,8 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     role ENUM('user', 'admin') DEFAULT 'user',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+
 
 -- --- Table: categories ---
 -- Must be created before locations or posts if they reference it.

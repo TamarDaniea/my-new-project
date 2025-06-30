@@ -1,34 +1,37 @@
 // db/run-migrations.js
 const fs = require('fs');
 const path = require('path');
-const db = require('../src/config/db'); // שינוי כאן // ודא/י שהנתיב לקובץ ה-db config נכון
+const db = require('../src/config/db');
 
-const migrationsDir = __dirname; // תיקיית המגרציות היא התיקייה הנוכחית (db)
+const migrationsDir = path.join(__dirname, 'migrations'); // ✔️ מצביע על db/migrations
 
 async function runMigrations() {
-    try {
-        console.log('Starting migrations...');
+    console.log('Starting migrations...');
 
+    try {
         const files = fs.readdirSync(migrationsDir)
-                        .filter(file => file.endsWith('.sql'))
-                        .sort(); // ודא/י שהקבצים מסודרים לפי שם (שכולל תאריך)
+            .filter(file => file.endsWith('.sql'))
+            .sort();
+
+        console.log('Found migration files:', files); // ✔️ לראות אילו קבצים נמצאו
 
         for (const file of files) {
             const filePath = path.join(migrationsDir, file);
             const sql = fs.readFileSync(filePath, 'utf8');
 
             console.log(`Running migration: ${file}`);
-            await db.query(sql); // db.query יכול להריץ מספר פקודות בבת אחת אם הן מופרדות בנקודה-פסיק
+            await db.query(sql); 
             console.log(`Successfully ran ${file}`);
         }
 
         console.log('All migrations completed successfully.');
     } catch (error) {
         console.error('Error running migrations:', error);
-        process.exit(1); // צאי עם שגיאה אם משהו השתבש
+        process.exit(1);
     } finally {
-        if (db.end) { // סגור את החיבור למסד הנתונים אם יש פונקציה כזו
-            db.end();
+        if (db.end) {
+            await db.end();
+            console.log('Database connection closed.');
         }
     }
 }
