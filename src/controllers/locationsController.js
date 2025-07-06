@@ -1,7 +1,7 @@
 const Location = require('../models/Location');
 const Comment = require('../models/Comment');
 const db = require('../config/db');
-const User = require('../models/User'); 
+const User = require('../models/User');
 const { validationResult } = require('express-validator');
 
 
@@ -77,6 +77,22 @@ const locationsController = {
         } catch (error) {
             console.error('Error fetching location by ID:', error);
             res.status(500).json({ message: req.t('locations.fetch_error'), error: error.message });
+        }
+    },
+    getLocationsByDate: async (req, res) => {
+        const { start, end } = req.query;
+
+        if (!start || !end) {
+            return res.status(400).json({ message: 'Missing start or end date' });
+        }
+
+        try {
+            const locations = await Location.getLocationsByDate(start, end);
+            res.status(200).json(locations);
+        } catch (error) {
+            console.error('Error fetching locations by date:', error);
+            console.log('Error details:', error);
+            res.status(500).json({ message: 'Server error' });
         }
     },
 

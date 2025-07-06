@@ -88,6 +88,21 @@ const postsController = {
             res.status(500).json({ message: req.t('posts.fetch_error'), error: error.message });
         }
     },
+    getPostsByDate: async (req, res) => {
+        const { start, end } = req.query;
+
+        if (!start || !end) {
+            return res.status(400).json({ message: 'Missing start or end date' });
+        }
+
+        try {
+            const posts = await Post.getPostsByDate(start, end);
+            res.status(200).json(posts);
+        } catch (error) {
+            console.error('Error:', error);
+            res.status(500).json({ message: 'Server error' });
+        }
+    },
 
     // פונקציה לעדכון פוסט קיים
     updatePost: async (req, res) => {
@@ -197,7 +212,7 @@ const postsController = {
                 // אם אדמין – מחיקה רכה (soft delete)
                 affectedRows = await Post.softDelete(postId);
                 if (affectedRows === 0) {
-                     // אם 0, זה אומר שהפוסט כבר היה מחוק או לא נמצא (אבל postExists כבר טיפל בזה)
+                    // אם 0, זה אומר שהפוסט כבר היה מחוק או לא נמצא (אבל postExists כבר טיפל בזה)
                     return res.status(200).json({ message: req.t('posts.already_deleted_by_admin') });
                 }
                 res.status(200).json({ message: req.t('posts.soft_delete_success') });

@@ -7,6 +7,8 @@ const fakeAuth = require('../middlewares/fakeAuth'); // ודא שורה זו ק�
 
 // GET all posts (לא דורש אימות)
 router.get('/', postsController.getAllPosts);
+// GET posts sorted by date (לא דורש אימות)
+router.get('/by-date', postsController.getPostsByDate);
 // GET posts by category (לא דורש אימות)
 router.get('/byCategory', postsController.getPostsByCategory);
 // POST new post (דורש אימות)

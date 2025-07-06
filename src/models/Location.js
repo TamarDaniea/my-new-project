@@ -1,5 +1,5 @@
 // models/Location.js
-const db = require('../config/db'); 
+const db = require('../config/db');
 
 // פונקציות עזר לחישוב מרחק גאוגרפי (Haversine Formula) - מחוץ למחלקה
 // למרות שהחישוב עצמו נעשה ב-SQL, הפונקציות האלה יכולות לשמש לבדיקה/הבנה
@@ -113,7 +113,7 @@ class Location {
     // שיטה לעדכון מיקום
     static async update(id, locationData) {
         // NEW: Added country, area, city to allowedFields
-        const allowedFields = ['name', 'description', 'images', 'category_id', 'country', 'area', 'city', 'lat', 'lng']; 
+        const allowedFields = ['name', 'description', 'images', 'category_id', 'country', 'area', 'city', 'lat', 'lng'];
         const fields = [];
         const values = [];
 
@@ -123,7 +123,7 @@ class Location {
                 allowedFields.includes(key)
             ) {
                 fields.push(`${key} = ?`);
-                const value = key === 'images' 
+                const value = key === 'images'
                     ? JSON.stringify(locationData[key])
                     : locationData[key];
                 values.push(value);
@@ -313,6 +313,15 @@ class Location {
         const [result] = await db.execute(sql, [id]);
         return result.affectedRows;
     }
+      static async getLocationsByDate(start, end) {
+        const endWithTime = end + ' 23:59:59';
+        const [rows] = await db.execute(
+            `SELECT * FROM locations WHERE created_at BETWEEN ? AND ? ORDER BY created_at DESC`,
+            [start, endWithTime]
+        );
+
+        return rows;
+    };
 
 }
 

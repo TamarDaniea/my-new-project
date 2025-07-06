@@ -328,6 +328,14 @@ class Post {
         return result.affectedRows;
     }
 
+   static async getPostsByDate(start, end){
+        const [rows] = await db.execute(
+            `SELECT * FROM posts WHERE created_at BETWEEN ? AND ? ORDER BY created_at DESC`,
+            [start, end]
+        );
+        return rows;
+    };
+
 }
 
 module.exports = Post;

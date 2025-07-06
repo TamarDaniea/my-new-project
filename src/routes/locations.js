@@ -12,6 +12,8 @@ router.get('/', locationsController.searchLocations);
 // POST new location - דורש אימות משתמש
 router.post('/', fakeAuth, locationsController.createLocation);
 
+// GET locations sorted by date
+router.get('/by-date', locationsController.getLocationsByDate);
 // GET location by ID
 router.get('/:id', locationsController.getLocationById);
 
