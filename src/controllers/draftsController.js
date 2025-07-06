@@ -35,17 +35,40 @@ const saveDraft = async (req, res) => {
     }
 };
 
+// const getDrafts = async (req, res) => {
+//     const userId = req.user.firebase_uid;
+
+//     try {
+//         const drafts = await Draft.findByUserId(userId);
+//         res.status(200).json(drafts);
+//     } catch (error) {
+//         console.error('Error fetching drafts:', error);
+//         res.status(500).json({ message: 'Error fetching drafts', error: error.message });
+//     }
+// };
 const getDrafts = async (req, res) => {
-    const userId = req.user.firebase_uid;
+    console.log('🔍 Current user:', req.user);
+    const requesterId = req.user.firebase_uid;
+    const requesterRole = req.user.role;
+    const queryUserId = req.query.userId;
+
+    // אם נשלח userId – נבדוק הרשאה
+    const userIdToFetch = queryUserId || requesterId;
+
+    // רק אדמין יכול לשלוף טיוטות של משתמש אחר
+    if (queryUserId && requesterId !== queryUserId && requesterRole !== 'admin') {
+        return res.status(403).json({ message: 'Unauthorized to access drafts of another user.' });
+    }
 
     try {
-        const drafts = await Draft.findByUserId(userId);
+        const drafts = await Draft.findByUserId(userIdToFetch);
         res.status(200).json(drafts);
     } catch (error) {
         console.error('Error fetching drafts:', error);
         res.status(500).json({ message: 'Error fetching drafts', error: error.message });
     }
 };
+
 
 const getDraftById = async (req, res) => {
     const { id } = req.params;
@@ -54,7 +77,7 @@ const getDraftById = async (req, res) => {
     try {
         const draft = await Draft.findById(id);
         // וודא שהטיוטה שייכת למשתמש, או שהמשתמש הוא אדמין אם תרצה לאפשר זאת גם כאן
-        if (!draft || draft.user_id !== userId) {
+        if (!draft || (draft.user_id !== userId && req.user.role !== 'admin')) {
             return res.status(404).json({ message: 'Draft not found or unauthorized' });
         }
         res.status(200).json(draft);
