@@ -1,5 +1,6 @@
 // src/controllers/usersController.js
 const User = require('../models/User');
+const { registerUser } = require('../services/createVerificationEmail');
 
 const usersController = {
     getUserProfile: async (req, res) => {
@@ -31,20 +32,75 @@ const usersController = {
         }
     },
 
+    // createUser: async (req, res) => {
+    //     try {
+    //         const userData = req.body;
+    //         if (!userData.firebase_uid || !userData.name || !userData.email) {
+    //             return res.status(400).json({ message: req.t('users.missing_fields') });
+    //         }
+
+    //         const newUser = await User.create(userData);
+    //         res.status(201).json({ message: req.t('users.create_success'), user: newUser });
+    //     } catch (error) {
+    //         console.error('Error creating user:', error);
+    //         if (error.code === 'ER_DUP_ENTRY') {
+    //             return res.status(409).json({ message: req.t('users.duplicate_user') });
+    //         }
+    //         res.status(500).json({ message: req.t('users.create_error'), error: error.message });
+    //     }
+    // },
     createUser: async (req, res) => {
         try {
-            const userData = req.body;
-            if (!userData.firebase_uid || !userData.name || !userData.email) {
+            const { name, email, password } = req.body;
+
+            // בדיקת שדות חובה
+            if (!name || !email || !password) {
                 return res.status(400).json({ message: req.t('users.missing_fields') });
             }
 
+            // ולידציות בסיסיות
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                return res.status(400).json({ message: req.t('users.invalid_email') });
+            }
+
+            if (name.trim().length < 2) {
+                return res.status(400).json({ message: req.t('users.invalid_name') });
+            }
+
+            if (password.length < 6) {
+                return res.status(400).json({ message: req.t('users.invalid_password') }); // ודאי שיש מפתח כזה בקובץ i18n
+            }
+
+            // 1. יצירת משתמש ב-Firebase + שליחת מייל אימות
+            const firebaseUser = await registerUser(email, password);
+
+            // 2. שמירת המשתמש במסד הנתונים שלך (MySQL)
+            const userData = {
+                firebase_uid: firebaseUser.uid,
+                name,
+                email,
+                role: 'user', // ברירת מחדל
+            };
+
             const newUser = await User.create(userData);
+
+            // 3. החזרה ללקוח
             res.status(201).json({ message: req.t('users.create_success'), user: newUser });
+
         } catch (error) {
             console.error('Error creating user:', error);
+
+            // טיפול בשגיאת כפילות משתמש
             if (error.code === 'ER_DUP_ENTRY') {
                 return res.status(409).json({ message: req.t('users.duplicate_user') });
             }
+
+            // שגיאת Firebase – כמו אימייל שכבר קיים
+            if (error.code === 'auth/email-already-exists') {
+                return res.status(409).json({ message: req.t('users.firebase_email_exists') });
+            }
+
             res.status(500).json({ message: req.t('users.create_error'), error: error.message });
         }
     },
