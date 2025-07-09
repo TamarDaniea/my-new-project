@@ -8,6 +8,7 @@ const usersRouter = require('./routes/users');
 const postsRouter = require('./routes/posts');
 const commentsRouter = require('./routes/comments');
 const categoriesRouter = require('./routes/categories');
+const logsRouter = require('./routes/logs');
 
 
 // *** ייבוא המידלווארים החדשים/מעודכנים ***
@@ -71,6 +72,8 @@ app.use('/api/comments', currentAuthMiddleware, commentsRouter);
 app.use('/api/favorites', currentAuthMiddleware, favoritesRouter);
 app.use('/api/votes', currentAuthMiddleware, votesRouter);
 app.use('/api/drafts', currentAuthMiddleware, draftsRouter);
+app.use('/api/logs', currentAuthMiddleware, logsRouter);
+// app.use('/api/reports', currentAuthMiddleware, reportsRouter); // ראוטים לדיווחים - דורשים אימות משתמש
 
 // ראוטים שדורשים הרשאות אדמין ספציפיות:
 // 1. ניהול קטגוריות: כל פעולות ה-CRUD על קטגוריות צריכות להיות מוגבלות לאדמין.

@@ -1,4 +1,6 @@
 const Report = require('../models/Report');
+const logEvent = require('../utils/logEvent');
+
 
 const createReport = async (req, res) => {
   try {
@@ -14,6 +16,12 @@ const createReport = async (req, res) => {
     }
 
     const reportId = await Report.create({ item_type, item_id, user_id, reason });
+    await logEvent(
+      'CREATE',
+      `User ${user_id} reported ${item_type} ${item_id} - reason: "${reason}"`,
+      user_id
+    );
+
     return res.status(201).json({ message: req.t('reports.create_success'), reportId });
   } catch (error) {
     console.error('Error creating report:', error);

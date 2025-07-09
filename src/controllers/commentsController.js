@@ -2,6 +2,8 @@
 const Comment = require('../models/Comment');
 const Location = require('../models/Location'); // ייבוא מודל Location
 const Post = require('../models/Post');
+const logEvent = require('../utils/logEvent');
+
 
 const commentsController = {
     // פונקציה כללית להוספת תגובה לפוסט או למיקום
@@ -37,7 +39,7 @@ const commentsController = {
 
             // 3. צור את התגובה במסד הנתונים
             const newComment = await Comment.create(commentData);
-
+            await logEvent('ADD_COMMENT', `User ${user_id} added comment to ${item_type} ${item_id}`, user_id);
             res.status(201).json({ message: req.t('comments.added_success'), comment: newComment });
         } catch (error) {
             console.error('Error adding comment:', error);
@@ -95,7 +97,7 @@ const commentsController = {
             } else if (comment.post_id) {
                 await Post.decrementCommentCount(comment.post_id);
             }
-
+            await logEvent('DELETE_COMMENT', `User ${user_id} deleted comment ${id} from ${comment.post_id ? 'post' : 'location'}`, user_id);
             res.status(200).json({ message: req.t('comments.delete_success') });
         } catch (error) {
             console.error('Error deleting comment:', error);

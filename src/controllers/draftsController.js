@@ -1,6 +1,8 @@
 // controllers/draftsController.js
 const Draft = require('../models/Draft');
 const { validationResult } = require('express-validator');
+const logEvent = require('../utils/logEvent');
+
 
 const saveDraft = async (req, res) => {
     const errors = validationResult(req);
@@ -20,6 +22,7 @@ const saveDraft = async (req, res) => {
         if (content.draftId) {
             const updated = await Draft.update(content.draftId, content);
             if (updated) {
+                await logEvent('UPDATE_DRAFT', `User ${userId} updated ${item_type} draft ${content.draftId}`, userId);
                 return res.status(200).json({ message: 'Draft updated successfully', draftId: content.draftId });
             } else {
                 return res.status(404).json({ message: 'Draft not found or not updated' });
@@ -27,6 +30,7 @@ const saveDraft = async (req, res) => {
         } else {
             // יצירת טיוטה חדשה
             const draftId = await Draft.create(userId, item_type, content);
+            await logEvent('CREATE_DRAFT', `User ${userId} created a new ${item_type} draft`, userId);
             res.status(201).json({ message: 'Draft saved successfully', draftId });
         }
     } catch (error) {
@@ -112,6 +116,7 @@ const deleteDraft = async (req, res) => {
         // אם עבר את בדיקת ההרשאות (הוא הבעלים או אדמין), המשך למחיקה
         const deleted = await Draft.delete(id);
         if (deleted) {
+            await logEvent('DELETE_DRAFT', `User ${userId} deleted draft ${id}`, userId);
             res.status(200).json({ message: 'Draft deleted successfully' });
         } else {
             res.status(500).json({ message: 'Failed to delete draft' });

@@ -2,6 +2,8 @@ const Post = require('../models/Post');
 const Category = require('../models/Category');
 const User = require('../models/User');
 const Location = require('../models/Location');
+const logEvent = require('../utils/logEvent');
+
 
 const postsController = {
 
@@ -65,6 +67,11 @@ const postsController = {
             };
 
             const newPost = await Post.create(postData);
+            await logEvent(
+                'CREATE',
+                `User ${user_id} created post "${title}"`,
+                user_id
+            );
             res.status(201).json({ message: req.t('posts.create_success'), post: newPost });
 
         } catch (error) {
@@ -177,6 +184,13 @@ const postsController = {
                 // במקרה של 0 affectedRows לאחר שעברנו את כל הבדיקות, נחזיר 200 עם הודעה שלא בוצעו שינויים
                 return res.status(200).json({ message: req.t('posts.update_no_actual_change') });
             }
+            if (affectedRows > 0) {
+                await logEvent(
+                    'UPDATE',
+                    `User ${userId} updated post ${id}`,
+                    userId
+                );
+            }
 
             res.status(200).json({ message: req.t('posts.update_success') });
         } catch (error) {
@@ -215,6 +229,12 @@ const postsController = {
                     // אם 0, זה אומר שהפוסט כבר היה מחוק או לא נמצא (אבל postExists כבר טיפל בזה)
                     return res.status(200).json({ message: req.t('posts.already_deleted_by_admin') });
                 }
+                await logEvent(
+                    'DELETE',
+                    `Admin ${userId} soft deleted post ${postId}`,
+                    userId
+                );
+
                 res.status(200).json({ message: req.t('posts.soft_delete_success') });
 
             } else {
@@ -227,6 +247,12 @@ const postsController = {
                 if (affectedRows === 0) {
                     return res.status(404).json({ message: req.t('posts.not_found_for_delete') });
                 }
+                await logEvent(
+                    'DELETE',
+                    `User ${userId} deleted post ${postId}`,
+                    userId
+                );
+
                 res.status(200).json({ message: req.t('posts.hard_delete_success') });
             }
 

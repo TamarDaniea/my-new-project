@@ -2,11 +2,12 @@
 const Vote = require('../models/Vote');
 const Location = require('../models/Location');
 const Post = require('../models/Post');
+const logEvent = require('../utils/logEvent');
 
 const votesController = {
 
     addOrUpdateVote: async (req, res) => {
-      
+
 
         try {
             const { item_type, item_id, value } = req.body;
@@ -98,6 +99,13 @@ const votesController = {
                     message = req.t('votes.error');
             }
 
+            if (['inserted', 'updated', 'deleted'].includes(action)) {
+                await logEvent(
+                    action.toUpperCase(), // לדוגמה: "INSERTED" => "INSERTED"
+                    `User ${user_id} ${action} vote (${value}) on ${item_type} ${item_id}`,
+                    user_id
+                );
+            }
 
             console.log('Sending successful response:', message); // <--- חדש
             res.status(200).json({ message });

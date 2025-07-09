@@ -1,6 +1,8 @@
 // src/controllers/usersController.js
 const User = require('../models/User');
 const { registerUser } = require('../services/createVerificationEmail');
+const logEvent = require('../utils/logEvent');
+
 
 const usersController = {
     getUserProfile: async (req, res) => {
@@ -31,24 +33,6 @@ const usersController = {
             res.status(500).json({ message: req.t('users.fetch_error'), error: error.message });
         }
     },
-
-    // createUser: async (req, res) => {
-    //     try {
-    //         const userData = req.body;
-    //         if (!userData.firebase_uid || !userData.name || !userData.email) {
-    //             return res.status(400).json({ message: req.t('users.missing_fields') });
-    //         }
-
-    //         const newUser = await User.create(userData);
-    //         res.status(201).json({ message: req.t('users.create_success'), user: newUser });
-    //     } catch (error) {
-    //         console.error('Error creating user:', error);
-    //         if (error.code === 'ER_DUP_ENTRY') {
-    //             return res.status(409).json({ message: req.t('users.duplicate_user') });
-    //         }
-    //         res.status(500).json({ message: req.t('users.create_error'), error: error.message });
-    //     }
-    // },
     createUser: async (req, res) => {
         try {
             const { name, email, password } = req.body;
@@ -84,6 +68,7 @@ const usersController = {
             };
 
             const newUser = await User.create(userData);
+            await logEvent('CREATE_USER', `New user created: ${newUser.name} (${newUser.firebase_uid})`, newUser.firebase_uid);
 
             // 3. החזרה ללקוח
             res.status(201).json({ message: req.t('users.create_success'), user: newUser });
@@ -166,6 +151,8 @@ const usersController = {
                 message: req.t('users.update_success'),
                 user: updatedUser
             });
+            await logEvent('UPDATE_USER', `User ${firebaseUidToUpdate} updated profile`, currentUserUid);
+
         } catch (error) {
             console.error('Error updating profile:', error);
             res.status(500).json({ message: req.t('users.update_error'), error: error.message });
@@ -194,6 +181,7 @@ const usersController = {
             if (affectedRows === 0) {
                 return res.status(404).json({ message: req.t('users.not_found') });
             }
+            await logEvent('DELETE_USER', `User ${firebaseUidToDelete} deleted by ${currentUserUid}`, currentUserUid);
 
             res.status(200).json({ message: req.t('users.delete_success') });
         } catch (error) {

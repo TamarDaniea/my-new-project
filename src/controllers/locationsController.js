@@ -3,6 +3,8 @@ const Comment = require('../models/Comment');
 const db = require('../config/db');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
+const logEvent = require('../utils/logEvent');
+
 
 
 const locationsController = {
@@ -59,6 +61,11 @@ const locationsController = {
 
             const newLocation = await Location.create(locationData);
             console.log(req.language)
+            await logEvent(
+                'CREATE',
+                `User ${req.user.firebase_uid} created location "${name}"`,
+                req.user.firebase_uid
+            );
             res.status(201).json({ message: req.t('locations.create_success'), location: newLocation });
         } catch (error) {
             console.error('Error creating location:', error);
@@ -121,6 +128,11 @@ const locationsController = {
             }
 
             res.status(200).json({ message: req.t('locations.update_success') });
+            await logEvent(
+                'UPDATE',
+                `User ${userId} updated location ${locationId}`,
+                userId
+            );
         } catch (error) {
             console.error('Error updating location:', error);
             res.status(500).json({ message: req.t('locations.update_error'), error: error.message });
@@ -155,7 +167,11 @@ const locationsController = {
             if (affectedRows === 0) {
                 return res.status(404).json({ message: req.t('locations.not_found') });
             }
-
+            await logEvent(
+                'DELETE',
+                `User ${userId} deleted location ${locationId} ${isAdmin ? '(admin soft delete)' : ''}`,
+                userId
+            );
             res.status(200).json({ message: req.t('locations.delete_success') });
 
         } catch (error) {

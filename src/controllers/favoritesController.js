@@ -1,4 +1,6 @@
 const Favorite = require('../models/Favorite');
+const logEvent = require('../utils/logEvent');
+
 
 const favoritesController = {
     getFavorites: async (req, res) => {
@@ -21,6 +23,7 @@ const favoritesController = {
 
         try {
             await Favorite.add(userId, item_type, item_id);
+            await logEvent('ADD_FAVORITE', `User ${userId} added ${item_type} ${item_id} to favorites`, userId);
             res.json({ message: req.t('favorite.added') });
         } catch (err) {
             res.status(500).json({ message: req.t('favorite.addError'), error: err });
@@ -36,6 +39,7 @@ const favoritesController = {
             if (affectedRows === 0) {
                 return res.status(404).json({ message: req.t('favorite.notFound') });
             }
+            await logEvent('REMOVE_FAVORITE', `User ${userId} removed ${item_type} ${item_id} from favorites`, userId);
             res.json({ message: req.t('favorite.removed') });
         } catch (err) {
             res.status(500).json({ message: req.t('favorite.removeError'), error: err });

@@ -1,4 +1,6 @@
 const Category = require('../models/Category');
+const logEvent = require('../utils/logEvent');
+
 
 const categoriesController = {
     getAllCategories: async (req, res) => {
@@ -14,6 +16,7 @@ const categoriesController = {
     createCategory: async (req, res) => {
         try {
             const newCategory = await Category.create(req.body);
+            await logEvent('CREATE_CATEGORY', `Category "${newCategory.name}" created`, req.user.firebase_uid);
             res.status(201).json({ message: req.t('category.created'), category: newCategory });
         } catch (error) {
             console.error('Error creating category:', error);
@@ -43,6 +46,7 @@ const categoriesController = {
             if (affectedRows === 0) {
                 return res.status(404).json({ message: req.t('category.updateError') });
             }
+            await logEvent('UPDATE_CATEGORY', `Category ID ${req.params.id} updated`, req.user.firebase_uid);
             res.status(200).json({ message: req.t('category.updated') });
         } catch (error) {
             console.error('Error updating category:', error);
@@ -56,6 +60,7 @@ const categoriesController = {
             if (affectedRows === 0) {
                 return res.status(404).json({ message: req.t('category.notFound') });
             }
+            await logEvent('DELETE_CATEGORY', `Category ID ${req.params.id} deleted`, req.user.firebase_uid);
             res.status(200).json({ message: req.t('category.deleted') });
         } catch (error) {
             console.error('Error deleting category:', error);
