@@ -16,6 +16,7 @@ router.get('/all', usersController.getAllUsers); // שיניתי את הנתיב
 router.get('/search', usersController.searchUsers); // שיניתי את הנתיב כדי למנוע התנגשות עם /:firebaseUid
 
 
+router.get('/recent-views', usersController.getRecentViews);
 // ✅ יצירת משתמש חדש - לרוב לא דורש אימות, אבל יכול להיות שמנגנון ה-signup מטפל בזה
 // אם יצירת משתמש היא חלק מתהליך Signup שאינו דורש שהמשתמש כבר יהיה מאומת,
 // ניתן להזיז את ה-POST / מחוץ ל-router.use(auth).

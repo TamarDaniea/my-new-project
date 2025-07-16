@@ -1,5 +1,7 @@
 const Favorite = require('../models/Favorite');
 const logEvent = require('../utils/logEvent');
+const UserActions = require('../utils/userActions');
+
 
 
 const favoritesController = {
@@ -24,6 +26,12 @@ const favoritesController = {
         try {
             await Favorite.add(userId, item_type, item_id);
             await logEvent('ADD_FAVORITE', `User ${userId} added ${item_type} ${item_id} to favorites`, userId);
+            await UserActions.trackAction(
+                req.user.firebase_uid,
+                `favorite_${item_type}`, // post / location
+                item_type,
+                item_id
+            );
             res.json({ message: req.t('favorite.added') });
         } catch (err) {
             res.status(500).json({ message: req.t('favorite.addError'), error: err });

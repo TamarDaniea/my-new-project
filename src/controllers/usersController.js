@@ -2,6 +2,7 @@
 const User = require('../models/User');
 const { registerUser } = require('../services/createVerificationEmail');
 const logEvent = require('../utils/logEvent');
+const db = require('../config/db');
 
 
 const usersController = {
@@ -224,7 +225,51 @@ const usersController = {
             console.error('Error searching users:', error);
             res.status(500).json({ message: req.t('users.search_error'), error: error.message });
         }
+    },
+
+    // שליפת פריטים שנצפו לאחרונה (locations או posts)
+    getRecentViews:async (req, res) => {
+        console.log('req.user:', req.user);
+        const userId = req.user?.firebase_uid;
+        const { type } = req.query;
+
+        if (!userId || !['location', 'post'].includes(type)) {
+            return res.status(400).json({ message: 'Invalid request' });
+        }
+
+        try {
+            // שליפת 10 אחרונים מהשבוע האחרון
+            const [views] = await db.execute(
+                `SELECT item_id FROM user_actions
+       WHERE user_id = ? AND action = ? AND timestamp >= NOW() - INTERVAL 7 DAY
+       ORDER BY timestamp DESC
+       LIMIT 10`,
+                [userId, `view_${type}`]
+            );
+
+            if (views.length === 0) {
+                return res.json({ message: 'אין פריטים שנצפו לאחרונה' });
+            }
+
+            const ids = views.map(v => v.item_id);
+
+            // שליפת הפריטים עצמם
+            const [items] = await db.query(
+                `SELECT * FROM ${type === 'location' ? 'locations' : 'posts'}
+       WHERE id IN (${ids.map(() => '?').join(',')})`,
+                ids
+            );
+
+            // החזרת הפריטים לפי הסדר שנצפו
+            const sortedItems = ids.map(id => items.find(item => item.id === id));
+
+            res.json(sortedItems);
+        } catch (error) {
+            console.error('Error fetching recent views:', error);
+            res.status(500).json({ message: 'Server error' });
+        }
     }
+
 };
 
 module.exports = usersController;

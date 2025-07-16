@@ -1,0 +1,8 @@
+CREATE TABLE user_actions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
+  action VARCHAR(50) NOT NULL,
+  item_type ENUM('post', 'location') DEFAULT NULL,
+  item_id INT DEFAULT NULL,
+  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);

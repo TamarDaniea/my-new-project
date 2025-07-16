@@ -1,5 +1,7 @@
 const Report = require('../models/Report');
 const logEvent = require('../utils/logEvent');
+const UserActions = require('../utils/userActions');
+
 
 
 const createReport = async (req, res) => {
@@ -21,6 +23,13 @@ const createReport = async (req, res) => {
       `User ${user_id} reported ${item_type} ${item_id} - reason: "${reason}"`,
       user_id
     );
+    await UserActions.trackAction(
+      req.user.firebase_uid,
+      `report_${item_type}`, // post / location
+      item_type,
+      item_id
+    );
+
 
     return res.status(201).json({ message: req.t('reports.create_success'), reportId });
   } catch (error) {

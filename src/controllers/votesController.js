@@ -3,6 +3,8 @@ const Vote = require('../models/Vote');
 const Location = require('../models/Location');
 const Post = require('../models/Post');
 const logEvent = require('../utils/logEvent');
+const UserActions = require('../utils/userActions');
+
 
 const votesController = {
 
@@ -106,6 +108,13 @@ const votesController = {
                     user_id
                 );
             }
+
+            await UserActions.trackAction(
+                req.user.firebase_uid,
+                `vote_${item_type}`, 
+                item_type,
+                item_id
+            );
 
             console.log('Sending successful response:', message); // <--- חדש
             res.status(200).json({ message });

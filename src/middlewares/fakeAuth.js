@@ -15,6 +15,7 @@ const fakeAuth = (req, res, next) => {
     } else {
         // *** השינוי כאן: השתמש ב-UID הקבוע שיצרת בשלב 1 עבור משתמש רגיל ***
         firebaseUid = 'test_user_001'; // <-- וודא שזה תואם ל-UID שהכנסת ל-DB!
+        
     }
 
     // הגדרת אובייקט המשתמש ב-req.user.

@@ -3,6 +3,7 @@ const Category = require('../models/Category');
 const User = require('../models/User');
 const Location = require('../models/Location');
 const logEvent = require('../utils/logEvent');
+const UserActions = require('../utils/userActions');
 
 
 const postsController = {
@@ -72,6 +73,12 @@ const postsController = {
                 `User ${user_id} created post "${title}"`,
                 user_id
             );
+            await UserActions.trackAction(
+                userId,
+                'create_post',
+                'post',
+                newPost.id
+            );
             res.status(201).json({ message: req.t('posts.create_success'), post: newPost });
 
         } catch (error) {
@@ -89,6 +96,12 @@ const postsController = {
             if (!post) {
                 return res.status(404).json({ message: req.t('posts.not_found') });
             }
+            await UserActions.trackAction(
+                req.user.firebase_uid,
+                'view_post',
+                'post',
+                post.id
+            );
             res.status(200).json(post);
         } catch (error) {
             console.error('Error fetching post by ID:', error);

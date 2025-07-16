@@ -4,6 +4,8 @@ const db = require('../config/db');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
 const logEvent = require('../utils/logEvent');
+const UserActions = require('../utils/userActions');
+
 
 
 
@@ -66,6 +68,14 @@ const locationsController = {
                 `User ${req.user.firebase_uid} created location "${name}"`,
                 req.user.firebase_uid
             );
+            
+            await UserActions.trackAction(
+                req.user.firebase_uid,
+                'create_location',
+                'location',
+                location.id
+            );
+
             res.status(201).json({ message: req.t('locations.create_success'), location: newLocation });
         } catch (error) {
             console.error('Error creating location:', error);
@@ -80,6 +90,13 @@ const locationsController = {
             if (!location) {
                 return res.status(404).json({ message: req.t('locations.not_found') });
             }
+            await UserActions.trackAction(
+                req.user.firebase_uid,
+                'view_location',
+                'location',
+                location.id
+            );
+
             res.status(200).json(location);
         } catch (error) {
             console.error('Error fetching location by ID:', error);
