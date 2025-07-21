@@ -63,7 +63,7 @@ class User {
     }
 
     /**
-     * מקבל נתונים ציבוריים של משתמש, כולל פוסטים ומקומות שהוסיף.
+     * מקבל נתונים ציבוריים של משתמש, כולל פוסטים ומקומות שהוסיף, ופוסטים ומקומות שסימן כמועדפים.
      * @param {string} firebaseUid - ה-UID של המשתמש מ-Firebase.
      * @returns {Promise<object|null>} - אובייקט עם פרטי פרופיל ציבוריים, פוסטים ומקומות, או null אם המשתמש לא נמצא.
      */
@@ -116,14 +116,53 @@ class User {
             `;
             const [locations] = await db.execute(locationsSql, [firebaseUid]);
 
+            // *** הוספה חדשה: שליפת פוסטים מועדפים ***
+            const favoritedPostsSql = `
+                SELECT 
+                    p.id, p.title, p.content, p.images, p.created_at, p.location_id, p.like_count, p.comment_count
+                FROM 
+                    posts p
+                JOIN 
+                    favorites f ON p.id = f.item_id
+                WHERE 
+                    f.user_id = ? AND f.item_type = 'post' AND p.is_deleted = FALSE
+                -- אין עמודת created_at בטבלת favorites, לכן אין מיון לפי f.created_at
+            `;
+            const [favoritedPosts] = await db.execute(favoritedPostsSql, [firebaseUid]);
+
+            // *** הוספה חדשה: שליפת מקומות מועדפים ***
+            const favoritedLocationsSql = `
+                SELECT 
+                    l.id, l.name, l.description, l.images, l.lat, l.lng, l.created_at, l.category_id, l.like_count, l.comment_count
+                FROM 
+                    locations l
+                JOIN 
+                    favorites f ON l.id = f.item_id
+                WHERE 
+                    f.user_id = ? AND f.item_type = 'location' AND l.is_deleted = FALSE
+                -- אין עמודת created_at בטבלת favorites, לכן אין מיון לפי f.created_at
+            `;
+            const [favoritedLocations] = await db.execute(favoritedLocationsSql, [firebaseUid]);
+
+
             return {
                 user: user,
-                posts: posts.map(post => ({ // ודא המרת תאריכים
+                posts: posts.map(post => ({ 
                     ...post,
                     images: post.images ? JSON.parse(post.images) : null,
                     created_at: post.created_at ? new Date(post.created_at).toISOString() : null
                 })),
-                locations: locations.map(location => ({ // ודא המרת תאריכים
+                locations: locations.map(location => ({ 
+                    ...location,
+                    images: location.images ? JSON.parse(location.images) : null,
+                    created_at: location.created_at ? new Date(location.created_at).toISOString() : null
+                })),
+                favoritedPosts: favoritedPosts.map(post => ({ // הוספה חדשה
+                    ...post,
+                    images: post.images ? JSON.parse(post.images) : null,
+                    created_at: post.created_at ? new Date(post.created_at).toISOString() : null
+                })),
+                favoritedLocations: favoritedLocations.map(location => ({ // הוספה חדשה
                     ...location,
                     images: location.images ? JSON.parse(location.images) : null,
                     created_at: location.created_at ? new Date(location.created_at).toISOString() : null
