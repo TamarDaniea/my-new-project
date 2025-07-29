@@ -101,6 +101,8 @@ const postsController = {
             if (!post) {
                 return res.status(404).json({ message: req.t('posts.not_found') });
             }
+
+
             // ודא ש-req.user.firebase_uid קיים לפני מעקב פעולה
             if (req.user && req.user.firebase_uid) {
                 await UserActions.trackAction(

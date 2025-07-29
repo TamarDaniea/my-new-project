@@ -68,7 +68,7 @@ const locationsController = {
                 `User ${req.user.firebase_uid} created location "${name}"`,
                 req.user.firebase_uid
             );
-            
+
             await UserActions.trackAction(
                 req.user.firebase_uid,
                 'create_location',
@@ -90,6 +90,10 @@ const locationsController = {
             if (!location) {
                 return res.status(404).json({ message: req.t('locations.not_found') });
             }
+
+            // הגדלת מונה צפיות
+            await Location.incrementViewCount(location.id);
+
             await UserActions.trackAction(
                 req.user.firebase_uid,
                 'view_location',
@@ -103,6 +107,7 @@ const locationsController = {
             res.status(500).json({ message: req.t('locations.fetch_error'), error: error.message });
         }
     },
+
     getLocationsByDate: async (req, res) => {
         const { start, end } = req.query;
 

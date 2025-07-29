@@ -102,15 +102,19 @@ class Post {
             created_at: row.created_at ? new Date(row.created_at).toISOString() : null
         }));
     }
-
     /**
-     * שיטה לקבלת פוסט לפי ID.
-     * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.
-     * @param {number} id - מזהה הפוסט.
-     * @returns {Promise<object|null>} - אובייקט הפוסט או null אם לא נמצא.
-     */
+ * שיטה לקבלת פוסט לפי ID, תוך עדכון מונה צפיות (view_count).
+ * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.
+ * @param {number} id - מזהה הפוסט.
+ * @returns {Promise<object|null>} - אובייקט הפוסט או null אם לא נמצא.
+ */
     static async getById(id) {
-        const sql = `
+        const connection = await db.getConnection();
+        try {
+            await connection.beginTransaction();
+
+            const [rows] = await connection.execute(
+                `
             SELECT
                 p.id,
                 p.title,
@@ -119,33 +123,95 @@ class Post {
                 p.like_count,
                 p.comment_count,
                 p.created_at,
-                p.is_deleted, -- הוספה: שדה is_deleted
+                p.view_count, -- נוספה תמיכה בשדה צפיות
+                p.is_deleted,
                 u.name AS user_name,
                 p.user_id AS firebase_uid,
                 l.name AS location_name,
                 l.id AS location_id,
                 c.name AS category_name,
                 c.id AS category_id
-            FROM
-                posts p
-            LEFT JOIN
-                users u ON p.user_id = u.firebase_uid
-            LEFT JOIN
-                locations l ON p.location_id = l.id
-            LEFT JOIN
-                categories c ON p.category_id = c.id
-            WHERE p.id = ? AND p.is_deleted = FALSE -- רק פוסטים שאינם מחוקים
-        `;
-        const [rows] = await db.execute(sql, [id]);
-        if (rows[0]) {
+            FROM posts p
+            LEFT JOIN users u ON p.user_id = u.firebase_uid
+            LEFT JOIN locations l ON p.location_id = l.id
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE p.id = ? AND p.is_deleted = FALSE
+            `,
+                [id]
+            );
+
+            if (rows.length === 0) {
+                await connection.rollback();
+                return null;
+            }
+
+            // הגדלת view_count
+            await connection.execute(
+                `UPDATE posts SET view_count = view_count + 1 WHERE id = ?`,
+                [id]
+            );
+
+            await connection.commit();
+
+            const post = rows[0];
             return {
-                ...rows[0],
-                images: safeJsonParseArray(rows[0].images), // ודא/י שה-images מומר למערך
-                created_at: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null // לוודא פורמט עקבי
+                ...post,
+                images: safeJsonParseArray(post.images),
+                created_at: post.created_at ? new Date(post.created_at).toISOString() : null
             };
+        } catch (error) {
+            await connection.rollback();
+            console.error('Error in getById with view_count:', error);
+            throw error;
+        } finally {
+            connection.release();
         }
-        return null;
     }
+
+
+    // /**
+    //  * שיטה לקבלת פוסט לפי ID.
+    //  * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.
+    //  * @param {number} id - מזהה הפוסט.
+    //  * @returns {Promise<object|null>} - אובייקט הפוסט או null אם לא נמצא.
+    //  */
+    // static async getById(id) {
+    //     const sql = `
+    //         SELECT
+    //             p.id,
+    //             p.title,
+    //             p.content,
+    //             p.images,
+    //             p.like_count,
+    //             p.comment_count,
+    //             p.created_at,
+    //             p.is_deleted, -- הוספה: שדה is_deleted
+    //             u.name AS user_name,
+    //             p.user_id AS firebase_uid,
+    //             l.name AS location_name,
+    //             l.id AS location_id,
+    //             c.name AS category_name,
+    //             c.id AS category_id
+    //         FROM
+    //             posts p
+    //         LEFT JOIN
+    //             users u ON p.user_id = u.firebase_uid
+    //         LEFT JOIN
+    //             locations l ON p.location_id = l.id
+    //         LEFT JOIN
+    //             categories c ON p.category_id = c.id
+    //         WHERE p.id = ? AND p.is_deleted = FALSE -- רק פוסטים שאינם מחוקים
+    //     `;
+    //     const [rows] = await db.execute(sql, [id]);
+    //     if (rows[0]) {
+    //         return {
+    //             ...rows[0],
+    //             images: safeJsonParseArray(rows[0].images), // ודא/י שה-images מומר למערך
+    //             created_at: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null // לוודא פורמט עקבי
+    //         };
+    //     }
+    //     return null;
+    // }
 
     /**
      * שיטה לעדכון פוסט קיים.
@@ -328,7 +394,7 @@ class Post {
         return result.affectedRows;
     }
 
-   static async getPostsByDate(start, end){
+    static async getPostsByDate(start, end) {
         const [rows] = await db.execute(
             `SELECT * FROM posts WHERE created_at BETWEEN ? AND ? ORDER BY created_at DESC`,
             [start, end]

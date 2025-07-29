@@ -214,3 +214,12 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+ALTER TABLE categories
+ADD COLUMN name_he VARCHAR(255) NOT NULL AFTER name,
+ADD COLUMN image_url VARCHAR(2083) DEFAULT NULL AFTER name_he;
+
+
+ALTER TABLE posts
+ADD COLUMN view_count INT DEFAULT 0 AFTER comment_count;
+ALTER TABLE locations
+ADD COLUMN view_count INT DEFAULT 0 AFTER comment_count;

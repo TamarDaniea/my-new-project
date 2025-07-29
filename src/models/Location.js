@@ -313,7 +313,7 @@ class Location {
         const [result] = await db.execute(sql, [id]);
         return result.affectedRows;
     }
-      static async getLocationsByDate(start, end) {
+    static async getLocationsByDate(start, end) {
         const endWithTime = end + ' 23:59:59';
         const [rows] = await db.execute(
             `SELECT * FROM locations WHERE created_at BETWEEN ? AND ? ORDER BY created_at DESC`,
@@ -322,6 +322,12 @@ class Location {
 
         return rows;
     };
+
+    static async incrementViewCount(id) {
+        const sql = `UPDATE locations SET view_count = view_count + 1 WHERE id = ?`;
+        await db.execute(sql, [id]);
+    }
+
 
 }
 
