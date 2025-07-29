@@ -1,28 +1,22 @@
 // src/controllers/commentsController.js
 const Comment = require('../models/Comment');
-const Location = require('../models/Location'); // ייבוא מודל Location
+const Location = require('../models/Location');
 const Post = require('../models/Post');
 const logEvent = require('../utils/logEvent');
 const UserActions = require('../utils/userActions');
 
-
-
 const commentsController = {
-    // פונקציה כללית להוספת תגובה לפוסט או למיקום
     addComment: async (req, res) => {
         try {
-            // מקבלים את סוג הפריט (post/location) ואת ה-ID שלו, ואת תוכן התגובה
             const { item_type, item_id, content } = req.body;
-            // מזהה המשתמש מגיע מה-authMiddleware
-            const user_id = req.user ? req.user.firebase_uid : 'test_uid_commenter'; // שימוש ב-req.user.firebase_uid
+            const user_id = req.user ? req.user.firebase_uid : 'test_uid_commenter';
 
-            // 1. ולידציה בסיסית לקלט
             if (!item_type || !item_id || !content || !['post', 'location'].includes(item_type) || content.trim() === '') {
                 return res.status(400).json({ message: req.t('comments.invalid_input') });
             }
 
-            // 2. ודא שה-item_id קיים ועדכן את מונה התגובות המתאים
             let commentData = { user_id, content };
+
             if (item_type === 'location') {
                 const location = await Location.getById(item_id);
                 if (!location) {
@@ -39,12 +33,11 @@ const commentsController = {
                 await Post.incrementCommentCount(item_id);
             }
 
-            // 3. צור את התגובה במסד הנתונים
             const newComment = await Comment.create(commentData);
             await logEvent('ADD_COMMENT', `User ${user_id} added comment to ${item_type} ${item_id}`, user_id);
             await UserActions.trackAction(
                 req.user.firebase_uid,
-                `comment_${item_type}`, // post / location
+                `comment_${item_type}`,
                 item_type,
                 item_id
             );
@@ -56,17 +49,14 @@ const commentsController = {
         }
     },
 
-    // פונקציה כללית לשליפת תגובות עבור פוסט או מיקום
-    // (זו הפונקציה שתחליף את getCommentsForPost)
     getCommentsByItem: async (req, res) => {
         try {
-            const { item_type, item_id } = req.params; // נניח שנקבל item_type ו-item_id בפרמטרים של ה-URL
+            const { item_type, item_id } = req.params;
 
             if (!item_type || !item_id || !['post', 'location'].includes(item_type)) {
                 return res.status(400).json({ message: req.t('comments.invalid_input') });
             }
 
-            // קורא לפונקציה גנרית במודל Comment
             const comments = await Comment.getCommentsByItem(item_type, item_id);
             res.status(200).json(comments);
         } catch (error) {
@@ -75,44 +65,90 @@ const commentsController = {
         }
     },
 
-    // פונקציה למחיקת תגובה
     deleteComment: async (req, res) => {
         try {
-            const { id } = req.params; // ה-ID של התגובה למחיקה
-            const user_id = req.user ? req.user.firebase_uid : 'test_uid_deleter'; // מזהה המשתמש המאומת
+            const { id } = req.params;
+            const user_id = req.user ? req.user.firebase_uid : 'test_uid_deleter';
 
-            // 1. קבל את פרטי התגובה כדי לדעת לאיזה פריט היא שייכת ומי המשתמש שיצר אותה
             const comment = await Comment.getById(id);
             if (!comment) {
                 return res.status(404).json({ message: req.t('comments.not_found') });
             }
 
-            // 2. ודא שהמשתמש הוא בעל התגובה או אדמין
-            // (נניח ש-req.user.role מוגדר ע"י ה-authMiddleware)
+            // לוגיקת הרשאות למחיקה
+            // המשתמש יכול למחוק אם הוא בעל התגובה או אם הוא אדמין
             if (comment.user_id !== user_id && req.user.role !== 'admin') {
                 return res.status(403).json({ message: req.t('comments.unauthorized_delete') });
             }
 
-            // 3. מחק את התגובה ממסד הנתונים
-            const affectedRows = await Comment.delete(id); // הפונקציה במודל תמחק לפי ID
+            const affectedRows = await Comment.delete(id);
             if (affectedRows === 0) {
-                // למרות שכבר בדקנו אם התגובה קיימת, זו בדיקה נוספת
                 return res.status(404).json({ message: req.t('comments.not_found') });
             }
 
-            // 4. עדכן את מונה התגובות של הפוסט/מיקום המתאים
             if (comment.location_id) {
                 await Location.decrementCommentCount(comment.location_id);
             } else if (comment.post_id) {
                 await Post.decrementCommentCount(comment.post_id);
             }
+
             await logEvent('DELETE_COMMENT', `User ${user_id} deleted comment ${id} from ${comment.post_id ? 'post' : 'location'}`, user_id);
             res.status(200).json({ message: req.t('comments.delete_success') });
         } catch (error) {
             console.error('Error deleting comment:', error);
             res.status(500).json({ message: req.t('comments.delete_error'), error: error.message });
         }
-    }
+    },
+
+    editComment: async (req, res) => {
+        try {
+        const { id } = req.params;
+        const { content } = req.body;
+        const user_id = req.user ? req.user.firebase_uid : 'test_uid_editor';
+         const user_role = req.user ? req.user.role : 'guest';
+        
+         if (!content || content.trim() === '') {
+         return res.status(400).json({ message: req.t('comments.content_missing') });
+         }
+        
+         const comment = await Comment.getById(id);
+         if (!comment) {
+         return res.status(404).json({ message: req.t('comments.not_found') });
+         }
+        
+         let canEdit = false;
+         if (comment.user_id === user_id) {
+         canEdit = true;
+        } else if (user_role === 'admin') {
+          canEdit = true;
+         }
+        
+        if (!canEdit) {
+         return res.status(403).json({ message: req.t('comments.unauthorized_edit') });
+       }
+        
+         let affectedRows;
+         if (user_role === 'admin') {
+         affectedRows = await Comment.updateContentOnly(id, content);
+         } else {
+         affectedRows = await Comment.update(id, user_id, content);
+       }
+        
+        if (affectedRows === 0) {
+      // השינוי המומלץ כאן:
+      // אם הגענו לכאן, זה אומר שהתגובה קיימת, יש הרשאות, אבל ה-DB לא דיווח על שינוי.
+      // הסיבה הסבירה ביותר היא שהתוכן שהוגש לעדכון זהה לתוכן הקיים.
+        return res.status(200).json({ message: req.t('comments.update_no_actual_change') });
+       }
+        
+         await logEvent('EDIT_COMMENT', `User ${user_id} updated comment ${id}`, user_id);
+         res.status(200).json({ message: req.t('comments.edit_success'), updatedCommentId: id });
+        
+        } catch (error) {
+         console.error('Error editing comment:', error);
+         res.status(500).json({ message: req.t('comments.edit_error'), error: error.message });
+         }
+         }
 };
 
 module.exports = commentsController;

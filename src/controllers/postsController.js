@@ -1,10 +1,10 @@
+// src/controllers/postsController.js
 const Post = require('../models/Post');
 const Category = require('../models/Category');
 const User = require('../models/User');
 const Location = require('../models/Location');
 const logEvent = require('../utils/logEvent');
 const UserActions = require('../utils/userActions');
-
 
 const postsController = {
 
@@ -39,8 +39,10 @@ const postsController = {
                 return res.status(400).json({ message: req.t('posts.invalid_category_type', { id: category_id }) });
             }
 
-            const user_id = req.user && req.user.firebase_uid;
+            // ודא ש-req.user.firebase_uid קיים - שונה מעט ללוגיקה בטוחה יותר
+            const user_id = req.user && req.user.firebase_uid ? req.user.firebase_uid : null;
             if (!user_id) {
+                console.error('createPost: User ID is missing from req.user', req.user);
                 return res.status(401).json({ message: req.t('posts.unauthorized_user_id') });
             }
 
@@ -73,12 +75,15 @@ const postsController = {
                 `User ${user_id} created post "${title}"`,
                 user_id
             );
-            await UserActions.trackAction(
-                userId,
-                'create_post',
-                'post',
-                newPost.id
-            );
+            // ודא ש-user_id קיים לפני מעקב פעולה
+            if (user_id) {
+                await UserActions.trackAction(
+                    user_id,
+                    'create_post',
+                    'post',
+                    newPost.id
+                );
+            }
             res.status(201).json({ message: req.t('posts.create_success'), post: newPost });
 
         } catch (error) {
@@ -96,12 +101,17 @@ const postsController = {
             if (!post) {
                 return res.status(404).json({ message: req.t('posts.not_found') });
             }
-            await UserActions.trackAction(
-                req.user.firebase_uid,
-                'view_post',
-                'post',
-                post.id
-            );
+            // ודא ש-req.user.firebase_uid קיים לפני מעקב פעולה
+            if (req.user && req.user.firebase_uid) {
+                await UserActions.trackAction(
+                    req.user.firebase_uid,
+                    'view_post',
+                    'post',
+                    post.id
+                );
+            } else {
+                console.warn('getPostById: req.user or firebase_uid missing for tracking action.');
+            }
             res.status(200).json(post);
         } catch (error) {
             console.error('Error fetching post by ID:', error);
@@ -133,11 +143,17 @@ const postsController = {
             const userId = req.user ? req.user.firebase_uid : null;
 
             if (!userId) {
+                console.error('updatePost: User ID is missing from req.user', req.user);
                 return res.status(401).json({ message: req.t('posts.unauthorized') });
             }
 
+            // קרא את המשתמש מה-DB רק פעם אחת
             const user = await User.getById(userId);
-            const isAdmin = user && user.role === 'admin';
+            if (!user) { // אם המשתמש לא נמצא ב-DB
+                console.error(`updatePost: User ${userId} not found in DB.`);
+                return res.status(404).json({ message: req.t('posts.user_not_found', { id: userId }) });
+            }
+            const isAdmin = user.role === 'admin';
 
             // בדיקה אם הפוסט קיים ולא מחוק לפני בדיקת בעלות
             const existingPost = await Post.getById(id);
@@ -192,9 +208,6 @@ const postsController = {
 
             const affectedRows = await Post.update(id, postDataToUpdate);
             if (affectedRows === 0) {
-                // ייתכן שהפוסט לא נמצא (אבל כבר בדקנו) או שלא היו שינויים בנתונים
-                // אם existingPost נמצא ולא נמחק, אז כנראה שאין שינויים.
-                // במקרה של 0 affectedRows לאחר שעברנו את כל הבדיקות, נחזיר 200 עם הודעה שלא בוצעו שינויים
                 return res.status(200).json({ message: req.t('posts.update_no_actual_change') });
             }
             if (affectedRows > 0) {
@@ -221,11 +234,17 @@ const postsController = {
             const userId = req.user ? req.user.firebase_uid : null;
 
             if (!userId) {
+                console.error('deletePost: User ID is missing from req.user', req.user);
                 return res.status(401).json({ message: req.t('posts.unauthorized') });
             }
 
+            // קרא את המשתמש מה-DB רק פעם אחת
             const user = await User.getById(userId);
-            const isAdmin = user && user.role === 'admin';
+            if (!user) { // אם המשתמש לא נמצא ב-DB
+                console.error(`deletePost: User ${userId} not found in DB.`);
+                return res.status(404).json({ message: req.t('posts.user_not_found', { id: userId }) });
+            }
+            const isAdmin = user.role === 'admin';
 
             // בדוק אם הפוסט קיים
             const postExists = await Post.getById(postId);
@@ -239,7 +258,6 @@ const postsController = {
                 // אם אדמין – מחיקה רכה (soft delete)
                 affectedRows = await Post.softDelete(postId);
                 if (affectedRows === 0) {
-                    // אם 0, זה אומר שהפוסט כבר היה מחוק או לא נמצא (אבל postExists כבר טיפל בזה)
                     return res.status(200).json({ message: req.t('posts.already_deleted_by_admin') });
                 }
                 await logEvent(
@@ -274,36 +292,6 @@ const postsController = {
             res.status(500).json({ message: req.t('posts.delete_error'), error: error.message });
         }
     },
-
-    // // פונקציה להוספת לייק לפוסט
-    // addLikeToPost: async (req, res) => {
-    //     try {
-    //         const { postId } = req.params;
-    //         const affectedRows = await Post.incrementLikeCount(postId);
-    //         if (affectedRows === 0) {
-    //             return res.status(404).json({ message: req.t('posts.like_increment_failed') });
-    //         }
-    //         res.status(200).json({ message: req.t('posts.like_added') });
-    //     } catch (error) {
-    //         console.error('Error adding like to post:', error);
-    //         res.status(500).json({ message: req.t('posts.like_add_error'), error: error.message });
-    //     }
-    // },
-
-    // // פונקציה להסרת לייק מפוסט
-    // removeLikeFromPost: async (req, res) => {
-    //     try {
-    //         const { postId } = req.params;
-    //         const affectedRows = await Post.decrementLikeCount(postId);
-    //         if (affectedRows === 0) {
-    //             return res.status(404).json({ message: req.t('posts.like_decrement_failed') });
-    //         }
-    //         res.status(200).json({ message: req.t('posts.like_removed') });
-    //     } catch (error) {
-    //         console.error('Error removing like from post:', error);
-    //         res.status(500).json({ message: req.t('posts.like_remove_error'), error: error.message });
-    //     }
-    // },
 
     // פונקציה לקבלת פוסטים לפי קטגוריה
     getPostsByCategory: async (req, res) => {

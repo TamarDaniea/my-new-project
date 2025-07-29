@@ -16,7 +16,17 @@
     "fetch_error": "שגיאה בקבלת תגובות",
     "delete_success": "התגובה נמחקה בהצלחה",
     "delete_error": "שגיאה במחיקת תגובה",
-    "not_found": "התגובה לא נמצאה"
+    "not_found": "התגובה לא נמצאה",
+    "invalid_input": "קלט לא תקין.",
+    "location_not_found": "מיקום לא נמצא.",
+    "post_not_found": "פוסט לא נמצא.",
+    "added_success": "התגובה נוספה בהצלחה.",
+    "unauthorized_delete": "אינך מורשה למחוק תגובה זו.",
+    "content_missing": "תוכן התגובה חסר.",
+    "unauthorized_edit": "אינך מורשה לערוך תגובה זו.",
+    "edit_success": "התגובה עודכנה בהצלחה.",
+    "edit_error": "אירעה שגיאה בעריכת התגובה.",
+    "update_no_actual_change": "התגובה עודכנה, אך לא בוצעו שינויים בפועל בתוכן."
   },
   "favorites": {
     "fetch_error": "שגיאה בקבלת מועדפים",

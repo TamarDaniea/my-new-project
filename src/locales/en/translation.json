@@ -16,7 +16,17 @@
     "fetch_error": "Error fetching comments",
     "delete_success": "Comment deleted successfully",
     "delete_error": "Error deleting comment",
-    "not_found": "Comment not found"
+    "not_found": "Comment not found",
+    "invalid_input": "Invalid input provided.",
+    "location_not_found": "Location not found.",
+    "post_not_found": "Post not found.",
+    "added_success": "Comment added successfully.",
+    "unauthorized_delete": "You are not authorized to delete this comment.",
+    "content_missing": "Comment content is missing.",
+    "unauthorized_edit": "You are not authorized to edit this comment.",
+    "edit_success": "Comment updated successfully.",
+    "edit_error": "Failed to edit comment.",
+    "update_no_actual_change": "Comment updated, but no actual changes were made to the content."
   },
   "favorites": {
     "fetch_error": "Error fetching favorites",
