@@ -116,9 +116,44 @@ SET @sql := IF(@fk_exists = 0,
     'ALTER TABLE locations ADD CONSTRAINT fk_location_user FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE SET NULL ON UPDATE CASCADE;',
     'SELECT "fk_location_user already exists";'
 );
+
+-- ALTER TABLE categories MODIFY COLUMN name_he VARCHAR(255) DEFAULT NULL;
+
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+
+
+-- ALTER TABLE categories
+-- ADD COLUMN name_he VARCHAR(255) DEFAULT NULL,
+-- ADD COLUMN image_url VARCHAR(2083) DEFAULT NULL AFTER name_he;
+-- הוספת name_he אם לא קיים
+SET @col_name_he := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_NAME = 'categories' AND COLUMN_NAME = 'name_he'
+);
+SET @sql_name_he := IF(@col_name_he = 0,
+  'ALTER TABLE categories ADD COLUMN name_he VARCHAR(255) DEFAULT NULL;',
+  'SELECT "column name_he already exists in categories";'
+);
+PREPARE stmt FROM @sql_name_he;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- הוספת image_url אם לא קיים
+SET @col_image_url := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_NAME = 'categories' AND COLUMN_NAME = 'image_url'
+);
+SET @sql_image_url := IF(@col_image_url = 0,
+  'ALTER TABLE categories ADD COLUMN image_url VARCHAR(2083) DEFAULT NULL AFTER name_he;',
+  'SELECT "column image_url already exists in categories";'
+);
+PREPARE stmt FROM @sql_image_url;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 
 -- --- Default categories for testing ---
 INSERT INTO categories (name, type) VALUES
@@ -214,12 +249,53 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
-ALTER TABLE categories
-ADD COLUMN name_he VARCHAR(255) NOT NULL AFTER name,
-ADD COLUMN image_url VARCHAR(2083) DEFAULT NULL AFTER name_he;
+
+-- ALTER TABLE categories
+-- ADD COLUMN name_he VARCHAR(255) DEFAULT NULL AFTER name,
+-- ADD COLUMN image_url VARCHAR(2083) DEFAULT NULL AFTER name_he;
 
 
-ALTER TABLE posts
-ADD COLUMN view_count INT DEFAULT 0 AFTER comment_count;
-ALTER TABLE locations
-ADD COLUMN view_count INT DEFAULT 0 AFTER comment_count;
+
+-- ALTER TABLE posts
+-- ADD COLUMN view_count INT DEFAULT 0 AFTER comment_count;
+-- ALTER TABLE locations
+-- ADD COLUMN view_count INT DEFAULT 0 AFTER comment_count;
+-- הוספת עמודת view_count ל-posts אם לא קיימת
+SET @col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_NAME = 'posts' AND COLUMN_NAME = 'view_count'
+);
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE posts ADD COLUMN view_count INT DEFAULT 0 AFTER comment_count;',
+  'SELECT "column view_count already exists in posts";'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- הוספת עמודת view_count ל-locations אם לא קיימת
+SET @col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_NAME = 'locations' AND COLUMN_NAME = 'view_count'
+);
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE locations ADD COLUMN view_count INT DEFAULT 0 AFTER comment_count;',
+  'SELECT "column view_count already exists in locations";'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+
+SET @col_exists := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_NAME = 'comments' AND COLUMN_NAME = 'parent_id'
+);
+SET @sql := IF(@col_exists = 0,
+  'ALTER TABLE comments ADD COLUMN parent_id INT DEFAULT NULL AFTER location_id;',
+  'SELECT "parent_id already exists";'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+

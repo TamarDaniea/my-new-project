@@ -5,17 +5,17 @@ const logEvent = require('../utils/logEvent');
 const UserActions = require('../utils/userActions');
 
 const commentsController = {
-    addComment: async (req, res) => {
-        try {
-            const { item_type, item_id, content } = req.body;
-            const user_id = req.user ? req.user.firebase_uid : 'test_uid_commenter';
+ addComment: async (req, res) => {
+try {
+const { item_type, item_id, content, parent_id } = req.body;
+const user_id = req.user ? req.user.firebase_uid : 'test_uid_commenter';
 
-            if (!item_type || !item_id || !content || !['post', 'location'].includes(item_type) || content.trim() === '') {
-                return res.status(400).json({ message: req.t('comments.invalid_input') });
-            }
+ if (!item_type || !item_id || !content || !['post', 'location'].includes(item_type) || content.trim() === '') {
+return res.status(400).json({ message: req.t('comments.invalid_input') });
+ }
 
-            let commentData = { user_id, content };
-
+ let commentData = { user_id, content };
+ if (parent_id) commentData.parent_id = parent_id;
             if (item_type === 'location') {
                 const location = await Location.getById(item_id);
                 if (!location) {
@@ -41,28 +41,47 @@ const commentsController = {
                 item_id
             );
 
-            res.status(201).json({ message: req.t('comments.added_success'), comment: newComment });
-        } catch (error) {
-            console.error('Error adding comment:', error);
-            res.status(500).json({ message: req.t('comments.add_error'), error: error.message });
-        }
-    },
+ res.status(201).json({ message: req.t('comments.added_success'), comment: newComment });
+} catch (error) {
+ console.error('Error adding comment:', error);
+res.status(500).json({ message: req.t('comments.add_error'), error: error.message });
+}
+},
 
-    getCommentsByItem: async (req, res) => {
-        try {
-            const { item_type, item_id } = req.params;
+getCommentsByItem: async (req, res) => {
+    try {
+        const { item_type, item_id } = req.params;
 
-            if (!item_type || !item_id || !['post', 'location'].includes(item_type)) {
-                return res.status(400).json({ message: req.t('comments.invalid_input') });
-            }
+        if (!item_type || !item_id || !['post', 'location'].includes(item_type)) {
+            return res.status(400).json({ message: req.t('comments.invalid_input') });
+        }
 
-            const comments = await Comment.getCommentsByItem(item_type, item_id);
-            res.status(200).json(comments);
-        } catch (error) {
-            console.error('Error fetching comments:', error);
-            res.status(500).json({ message: req.t('comments.fetch_error'), error: error.message });
-        }
-    },
+        const commentsFlat = await Comment.getHierarchicalComments(item_type, item_id);
+
+        // בניית עץ תגובות מהפלט השטוח
+        const commentMap = {};
+        const roots = [];
+
+        commentsFlat.forEach(comment => {
+            comment.replies = [];
+            commentMap[comment.id] = comment;
+        });
+
+        commentsFlat.forEach(comment => {
+            if (comment.parent_id) {
+                commentMap[comment.parent_id]?.replies.push(comment);
+            } else {
+                roots.push(comment);
+            }
+        });
+
+        res.status(200).json(roots);
+    } catch (error) {
+        console.error('Error fetching hierarchical comments:', error);
+        res.status(500).json({ message: req.t('comments.fetch_error'), error: error.message });
+    }
+},
+
 
     // פונקציה חדשה לשליפת תגובות לפי פרמטרי קוורי
     getCommentsByItemByQuery: async (req, res) => {

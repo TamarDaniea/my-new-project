@@ -6,16 +6,15 @@ class Comment {
      * יוצר/ת תגובה חדשה לפוסט או למיקום.
      */
     static async create(commentData) {
-        const { post_id, location_id, user_id, content } = commentData;
+        const { post_id, location_id, user_id, content, parent_id } = commentData;
         if ((post_id && location_id) || (!post_id && !location_id)) {
             throw new Error('Comment must be associated with either a post_id or a location_id, but not both.');
         }
-
         const sql = `
-            INSERT INTO comments (post_id, location_id, user_id, content)
-            VALUES (?, ?, ?, ?)
-        `;
-        const values = [post_id || null, location_id || null, user_id, content];
+    INSERT INTO comments (post_id, location_id, user_id, content, parent_id)
+    VALUES (?, ?, ?, ?, ?)
+`;
+const values = [post_id || null, location_id || null, user_id, content, parent_id || null];
         const [result] = await db.execute(sql, values);
         return { id: result.insertId, ...commentData, created_at: new Date().toISOString() };
     }
@@ -162,6 +161,37 @@ class Comment {
         const [result] = await db.execute(sql, [locationId]);
         return result.affectedRows;
     }
+
+    static async getHierarchicalComments(itemType, itemId) {
+        const column = itemType === 'post' ? 'post_id' : 'location_id';
+    
+        const sql = `
+            WITH RECURSIVE comment_tree AS (
+                SELECT 
+                    c.id, c.content, c.created_at, c.user_id, c.parent_id,
+                    u.name AS user_name,
+                    0 AS depth
+                FROM comments c
+                JOIN users u ON c.user_id = u.firebase_uid
+                WHERE c.${column} = ? AND c.parent_id IS NULL
+    
+                UNION ALL
+    
+                SELECT 
+                    c.id, c.content, c.created_at, c.user_id, c.parent_id,
+                    u.name AS user_name,
+                    ct.depth + 1
+                FROM comments c
+                JOIN users u ON c.user_id = u.firebase_uid
+                JOIN comment_tree ct ON c.parent_id = ct.id
+            )
+            SELECT * FROM comment_tree ORDER BY created_at ASC;
+        `;
+    
+        const [rows] = await db.execute(sql, [itemId]);
+        return rows;
+    }
+    
 }
 
 module.exports = Comment;
