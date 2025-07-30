@@ -4,6 +4,10 @@ const commentsController = require('../controllers/commentsController');
 const fakeAuth = require('../middlewares/fakeAuth');
 const auth = require('../middlewares/auth');
 
+// שליפת תגובות לפי פרמטרים בקוורי (GET /comments?itemType=location&itemId=123) - חדש
+// חשוב שהנתיב הזה יהיה לפני הנתיב עם פרמטרים ב-path כדי למנוע התנגשות
+router.get('/', commentsController.getCommentsByItemByQuery);
+
 // הוספת תגובה (POST /comments)
 router.post('/', fakeAuth, commentsController.addComment);
 

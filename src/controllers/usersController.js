@@ -1,6 +1,6 @@
 // src/controllers/usersController.js
 const User = require('../models/User');
-const { registerUser } = require('../services/createVerificationEmail');
+// const { registerUser } = require('../services/createVerificationEmail.js');
 const logEvent = require('../utils/logEvent');
 const db = require('../config/db');
 
