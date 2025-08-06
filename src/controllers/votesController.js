@@ -3,7 +3,7 @@ const Vote = require('../models/Vote');
 const Location = require('../models/Location');
 const Post = require('../models/Post');
 const logEvent = require('../utils/logEvent');
-const UserActions = require('../utils/userActions');
+const UserActions = require('../utils/UserActions');
 
 
 const votesController = {

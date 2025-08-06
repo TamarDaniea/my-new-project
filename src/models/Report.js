@@ -2,12 +2,12 @@ const db = require('../config/db');
 
 
 const Report = {
-  create: async ({ item_type, item_id, user_id, reason }) => {
+  create: async ({ item_type, item_id, user_id, reason , category_id}) => {
     const sql = `
-      INSERT INTO reports (item_type, item_id, user_id, reason, status, created_at)
+      INSERT INTO reports (item_type, item_id, user_id, reason, category_id status, created_at)
       VALUES (?, ?, ?, ?, 'open', NOW())
     `;
-    const [result] = await db.execute(sql, [item_type, item_id, user_id, reason]);
+    const [result] = await db.execute(sql, [item_type, item_id, user_id, reason, category_id]);
     return result.insertId; // מחזיר את מזהה הדיווח החדש
   },
 

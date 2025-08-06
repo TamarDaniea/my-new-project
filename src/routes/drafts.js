@@ -2,8 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const draftsController = require('../controllers/draftsController');
-const auth = require('../middlewares/fakeAuth'); // השתמש ב-fakeAuth לצורך פיתוח ובדיקה
 const { body, param } = require('express-validator');
+const auth = require('../middlewares/auth');
 
 // POST /api/drafts - שמירת טיוטה (יצירה או עדכון)
 router.post(

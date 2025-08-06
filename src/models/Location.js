@@ -328,7 +328,45 @@ class Location {
         await db.execute(sql, [id]);
     }
 
+    static async findLocations({ name, category, lat, lng, radius, country, area, city, limit, offset }) {
+        let query = `SELECT SQL_CALC_FOUND_ROWS * FROM locations WHERE 1=1`;
+        const params = [];
 
+        if (name) {
+            query += ` AND name LIKE ?`;
+            params.push(`%${name}%`);
+        }
+        if (category) {
+            query += ` AND category_id = ?`;
+            params.push(category);
+        }
+        if (country) {
+            query += ` AND country LIKE ?`;
+            params.push(`%${country}%`);
+        }
+        if (area) {
+            query += ` AND area LIKE ?`;
+            params.push(`%${area}%`);
+        }
+        if (city) {
+            query += ` AND city LIKE ?`;
+            params.push(`%${city}%`);
+        }
+
+        // אפשר להוסיף כאן חישוב מרחק לפי lat/lng/radius אם צריך
+
+        query += ` ORDER BY created_at DESC`;
+
+        if (limit !== undefined && offset !== undefined) {
+            query += ` LIMIT ? OFFSET ?`;
+            params.push(limit, offset);
+        }
+
+        const [rows] = await db.execute(query, params);
+        const [[{ 'FOUND_ROWS()': totalCount }]] = await db.execute(`SELECT FOUND_ROWS()`);
+
+        return { items: rows, totalCount };
+    }
 }
 
 module.exports = Location;

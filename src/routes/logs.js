@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const Log = require('../models/logs'); // ודאי שהמודל קיים
 const adminAuth = require('../middlewares/adminAuth'); // המידלוואר לאימות אדמין
+const auth = require('../middlewares/auth');
 
 router.get('/', adminAuth, async (req, res) => {
   try {

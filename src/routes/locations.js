@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const locationsController = require('../controllers/locationsController');
-const fakeAuth = require('../middlewares/fakeAuth');
+const auth = require('../middlewares/auth');
 
 
 // ראוטים למיקומים
@@ -10,7 +10,7 @@ const fakeAuth = require('../middlewares/fakeAuth');
 router.get('/', locationsController.searchLocations);
 
 // POST new location - דורש אימות משתמש
-router.post('/', fakeAuth, locationsController.createLocation);
+router.post('/', auth, locationsController.createLocation);
 
 // GET locations sorted by date
 router.get('/by-date', locationsController.getLocationsByDate);
@@ -18,16 +18,16 @@ router.get('/by-date', locationsController.getLocationsByDate);
 router.get('/:id', locationsController.getLocationById);
 
 // PUT update location by ID - דורש אימות משתמש
-router.put('/:id', fakeAuth, locationsController.updateLocation);
+router.put('/:id', auth, locationsController.updateLocation);
 
 // DELETE location by ID - דורש אימות משתמש
-router.delete('/:id', fakeAuth, locationsController.deleteLocation);
+router.delete('/:id', auth, locationsController.deleteLocation);
 
 // // POST add like to location (simple increment/decrement) - דורש אימות משתמש
-// router.post('/:locationId/like', fakeAuth, locationsController.addLikeToLocation);
+// router.post('/:locationId/like', auth, locationsController.addLikeToLocation);
 
 // // DELETE remove like from location - דורש אימות משתמש
-// router.delete('/:locationId/like', fakeAuth, locationsController.removeLikeFromLocation);
+// router.delete('/:locationId/like', auth, locationsController.removeLikeFromLocation);
 
 
 module.exports = router;
@@ -37,7 +37,7 @@ module.exports = router;
 // const authMiddleware = require('../middlewares/auth'); // וודא שנתיב זה נכון!
 // // <<<<<<< HEAD
 // // //  const authenticate = require('../middlewares/auth');
-// // const fakeAuth = require('../middlewares/fakeAuth');
+// // const auth = require('../middlewares/auth');
 // // =======
 // // // במידה ויהיה צורך באימות לראוטים מסוימים, יש להוסיף:
 // // // const { authenticateToken } = require('../middleware/authMiddleware'); 
@@ -66,6 +66,6 @@ module.exports = router;
 
 // // DELETE remove like from location
 // router.delete('/:locationId/like', locationsController.removeLikeFromLocation);
-// router.post('/', fakeAuth, locationsController.createLocation);
+// router.post('/', auth, locationsController.createLocation);
 
 // module.exports = router;

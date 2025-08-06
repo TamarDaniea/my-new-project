@@ -10,8 +10,9 @@ require('dotenv').config(); // טעינת משתני סביבה
 const app = express();
 
 // ייבוא מידלווארים
-const authMiddleware = require('./middlewares/auth'); // ה-authMiddleware האמיתי שלך מ-Firebase
-const fakeAuthMiddleware = require('./middlewares/fakeAuth'); // ה-fakeAuth המעודכן
+const auth = require('./middlewares/auth');
+// const authMiddleware = require('./middlewares/auth'); // ה-authMiddleware האמיתי שלך מ-Firebase
+// const fakeAuthMiddleware = require('./middlewares/fakeAuth'); // ה-fakeAuth המעודכן
 const adminAuthMiddleware = require('./middlewares/adminAuth'); // המידלוואר לבדיקת אדמין (שיניתי את השם לבהירות)
 
 // ייבוא ראוטרים
@@ -27,6 +28,7 @@ const votesRouter = require('./routes/votes');
 const draftsRouter = require('./routes/drafts');
 const shabbatTimesRouter = require('./routes/shabbatTimes');
 const statsRouter = require('./routes/stats'); // ייבוא הראוטר עבור /api/admin/stats
+const reportReasonsRoutes = require('./routes/reportReasons');
 
 // Middleware כלליים
 app.use(cors()); // Enable CORS
@@ -48,26 +50,27 @@ app.use(i18nextMiddleware.handle(i18n));
 // משתמשים ב-fakeAuth לפיתוח ובדיקות מקומיות ללא צורך ב-Firebase ID Token.
 // משתמשים ב-authMiddleware (האמיתי) לפרודקשן או בדיקות הדורשות אימות Firebase אמיתי.
 // הגדר את NODE_ENV=production בקובץ .env או בפקודת ההרצה כדי להשתמש ב-authMiddleware האמיתי.
-const currentAuthMiddleware = process.env.NODE_ENV === 'production' ? authMiddleware : fakeAuthMiddleware;
+// const auth = process.env.NODE_ENV === 'production' ? authMiddleware : fakeAuthMiddleware;
 
 
 // *** הגדרת ראוטים והחלת מידלווארים ***
 
 // ראוטים שדורשים אימות כללי (user או admin) - מידלוואר האימות בלבד
-app.use('/api/locations', currentAuthMiddleware, locationsRouter);
-app.use('/api/users', currentAuthMiddleware, usersRouter);
-app.use('/api/posts', currentAuthMiddleware, postsRouter);
-app.use('/api/comments', currentAuthMiddleware, commentsRouter);
-app.use('/api/favorites', currentAuthMiddleware, favoritesRouter);
-app.use('/api/votes', currentAuthMiddleware, votesRouter);
-app.use('/api/drafts', currentAuthMiddleware, draftsRouter);
-app.use('/api/logs', currentAuthMiddleware, logsRouter);
-app.use('/api/reports', currentAuthMiddleware, reportsRouter); // ראוטים לדיווחים - דורשים אימות משתמש
+app.use('/api/locations', auth, locationsRouter);
+app.use('/api/users', auth, usersRouter);
+app.use('/api/posts', auth, postsRouter);
+app.use('/api/comments', auth, commentsRouter);
+app.use('/api/favorites', auth, favoritesRouter);
+app.use('/api/votes', auth, votesRouter);
+app.use('/api/drafts', auth, draftsRouter);
+app.use('/api/logs', auth, logsRouter);
+app.use('/api/reports', auth, reportsRouter); // ראוטים לדיווחים - דורשים אימות משתמש
+app.use('/api/report-reasons', reportReasonsRoutes);
 
 // ראוטים שדורשים הרשאות אדמין ספציפיות:
-// המידלווארים ירוצו לפי הסדר: currentAuthMiddleware (אימות), adminAuthMiddleware (בדיקת תפקיד אדמין), ואז הראוטר עצמו.
-app.use('/api/categories', currentAuthMiddleware, adminAuthMiddleware, categoriesRouter);
-app.use('/api/admin/stats', currentAuthMiddleware, adminAuthMiddleware, statsRouter); // <--- חשוב מאוד: הוספתי את שני המידלווארים כאן!
+// המידלווארים ירוצו לפי הסדר: auth (אימות), adminAuthMiddleware (בדיקת תפקיד אדמין), ואז הראוטר עצמו.
+app.use('/api/categories', auth, adminAuthMiddleware, categoriesRouter);
+app.use('/api/admin/stats', auth, adminAuthMiddleware, statsRouter); // <--- חשוב מאוד: הוספתי את שני המידלווארים כאן!
 // שים לב: אין צורך ב-router.get('/admin/stats', ...) כאן, כי statsRouter כבר מטפל בזה.
 
 

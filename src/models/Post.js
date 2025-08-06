@@ -61,13 +61,18 @@ class Post {
     }
 
     /**
-     * שיטה לקבלת כל הפוסטים (כולל פרטי משתמש, מיקום וקטגוריה אם קיימים).
-     * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.
-     * @returns {Promise<Array<object>>} - מערך של אובייקטי פוסט.
-     */
-    static async getAll() {
-        const sql = `
+  * שיטה לקבלת כל הפוסטים (כולל פרטי משתמש, מיקום וקטגוריה אם קיימים).
+  * תומכת בפאג’ינציה עם limit ו־offset.
+  * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.
+  * @param {object} options - הגדרות שליפת פוסטים.
+  * @param {number} options.limit - מספר פריטים בעמוד.
+  * @param {number} options.offset - כמה פריטים לדלג (לפי עמוד).
+  * @returns {Promise<{items: Array<object>, totalCount: number}>}
+  */
+    static async getAll({ limit, offset }) {
+        let sql = `
         SELECT
+            SQL_CALC_FOUND_ROWS
             p.id,
             p.title,
             p.content,
@@ -75,7 +80,7 @@ class Post {
             p.like_count,
             p.comment_count,
             p.created_at,
-            p.is_deleted, -- הוספה: שדה is_deleted
+            p.is_deleted,
             u.name AS user_name,
             p.user_id AS firebase_uid,
             l.name AS location_name,
@@ -91,17 +96,30 @@ class Post {
         LEFT JOIN
             categories c ON p.category_id = c.id
         WHERE
-            p.is_deleted = FALSE -- רק פוסטים שאינם מחוקים
+            p.is_deleted = FALSE
         ORDER BY
             p.created_at DESC
-        `;
-        const [rows] = await db.execute(sql);
-        return rows.map(row => ({
-            ...row,
-            images: safeJsonParseArray(row.images),
-            created_at: row.created_at ? new Date(row.created_at).toISOString() : null
-        }));
+    `;
+
+        const params = [];
+        if (limit !== undefined && offset !== undefined) {
+            sql += ` LIMIT ? OFFSET ?`;
+            params.push(limit, offset);
+        }
+
+        const [rows] = await db.execute(sql, params);
+        const [[{ 'FOUND_ROWS()': totalCount }]] = await db.execute(`SELECT FOUND_ROWS()`);
+
+        return {
+            items: rows.map(row => ({
+                ...row,
+                images: safeJsonParseArray(row.images),
+                created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+            })),
+            totalCount
+        };
     }
+
     /**
  * שיטה לקבלת פוסט לפי ID, תוך עדכון מונה צפיות (view_count).
  * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.

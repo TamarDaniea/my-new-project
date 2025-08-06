@@ -4,7 +4,7 @@ const db = require('../config/db');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
 const logEvent = require('../utils/logEvent');
-const UserActions = require('../utils/userActions');
+const UserActions = require('../utils/UserActions');
 
 
 
@@ -14,10 +14,13 @@ const locationsController = {
     // הפונקציה הזו תשרת את הראוט GET /locations
     searchLocations: async (req, res) => {
         try {
-            // NEW: Added country, area, city to destructuring
-            const { name, category, lat, lng, radius, country, area, city } = req.query;
+            const {
+                name, category, lat, lng, radius, country, area, city,
+                page = 1, // ברירת מחדל לעמוד ראשון
+                limit = 6 // ברירת מחדל 6 פריטים
+            } = req.query;
 
-            // בדיקת ולידציה בסיסית (ניתן להרחיב עם express-validator)
+            // בדיקות ולידציה
             if (radius && (!lat || !lng)) {
                 return res.status(400).json({ message: 'Latitude and longitude are required when radius is provided.' });
             }
@@ -28,12 +31,22 @@ const locationsController = {
                 return res.status(400).json({ message: 'Latitude and longitude must be valid numbers.' });
             }
 
-            // קריאה לפונקציית החיפוש במודל Location
-            // אם אין פרמטרים, findLocations תחזיר את הכל
-            // NEW: Pass country, area, city to findLocations
-            const locations = await Location.findLocations({ name, category, lat, lng, radius, country, area, city });
+            const offset = (parseInt(page) - 1) * parseInt(limit);
 
-            res.status(200).json(locations);
+            // שליפת נתונים עם פאג’ינציה
+            const { items, totalCount } = await Location.findLocations({
+                name, category, lat, lng, radius, country, area, city,
+                limit: parseInt(limit),
+                offset
+            });
+
+            const hasMore = offset + parseInt(limit) < totalCount;
+
+            res.status(200).json({
+                items,
+                hasMore
+            });
+
         } catch (error) {
             console.error('Error fetching or searching locations:', error);
             res.status(500).json({ message: req.t('locations.fetch_error'), error: error.message });

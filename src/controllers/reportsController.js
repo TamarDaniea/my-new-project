@@ -1,13 +1,13 @@
 const Report = require('../models/Report');
 const logEvent = require('../utils/logEvent');
-const UserActions = require('../utils/userActions');
+const UserActions = require('../utils/UserActions');
 
 
 
 const createReport = async (req, res) => {
   try {
     const user_id = req.user.firebase_uid;
-    const { item_type, item_id, reason } = req.body;
+    const { item_type, item_id, reason, category_id } = req.body;
 
     if (!item_type || !item_id || !reason) {
       return res.status(400).json({ message: req.t('reports.missing_fields') });
@@ -17,7 +17,7 @@ const createReport = async (req, res) => {
       return res.status(400).json({ message: req.t('reports.invalid_item_type') });
     }
 
-    const reportId = await Report.create({ item_type, item_id, user_id, reason });
+    const reportId = await Report.create({ item_type, item_id, user_id, reason , category_id});
     await logEvent(
       'CREATE',
       `User ${user_id} reported ${item_type} ${item_id} - reason: "${reason}"`,

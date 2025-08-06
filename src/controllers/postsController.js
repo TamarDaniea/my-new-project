@@ -4,20 +4,34 @@ const Category = require('../models/Category');
 const User = require('../models/User');
 const Location = require('../models/Location');
 const logEvent = require('../utils/logEvent');
-const UserActions = require('../utils/userActions');
+const UserActions = require('../utils/UserActions');
 
 const postsController = {
 
     // פונקציה לקבלת כל הפוסטים
     getAllPosts: async (req, res) => {
         try {
-            const posts = await Post.getAll();
-            res.status(200).json(posts);
+            const { page = 1, limit = 6 } = req.query;
+            const offset = (parseInt(page) - 1) * parseInt(limit);
+
+            const { items, totalCount } = await Post.getAll({
+                limit: parseInt(limit),
+                offset
+            });
+
+            const hasMore = offset + parseInt(limit) < totalCount;
+
+            res.status(200).json({
+                items,
+                hasMore
+            });
+
         } catch (error) {
             console.error('Error fetching posts:', error);
             res.status(500).json({ message: req.t('posts.fetch_error'), error: error.message });
         }
     },
+
 
     // פונקציה ליצירת פוסט חדש
     createPost: async (req, res) => {

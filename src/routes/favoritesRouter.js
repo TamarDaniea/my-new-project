@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const favoritesController = require('../controllers/favoritesController');
-const fakeAuth = require('../middlewares/fakeAuth'); 
+const auth = require('../middlewares/auth'); 
 
-router.use(fakeAuth); 
+
+router.use(auth); 
 
 router.get('/', favoritesController.getFavorites);
 router.post('/', favoritesController.addFavorite);

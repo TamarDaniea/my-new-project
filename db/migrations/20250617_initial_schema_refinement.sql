@@ -299,3 +299,25 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+
+ALTER TABLE reports 
+ADD COLUMN category_id INT,
+ADD CONSTRAINT fk_reports_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL ON UPDATE CASCADE;
+
+CREATE TABLE IF NOT EXISTS report_reasons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    reason_key VARCHAR(50) NOT NULL UNIQUE,
+    description_he VARCHAR(255) NOT NULL
+);
+
+INSERT INTO report_reasons (reason_key, description_he) VALUES
+('offensive_content', 'תוכן פוגעני או מעליב'),
+('hate_speech', 'דברי שנאה או הסתה'),
+('misleading_info', 'מידע שגוי או מטעה'),
+('inappropriate_content', 'תוכן לא ראוי/בלתי הולם'),
+('incorrect_location', 'מיקום שגוי או לא קיים'),
+('duplicate_spam', 'תוכן כפול או ספאם'),
+('privacy_violation', 'פגיעה בפרטיות או מידע רגיש'),
+('irrelevant_fake_images', 'תמונות לא רלוונטיות / מזויפות'),
+('unauthorized_commercial', 'פרסום מסחרי לא מורשה'),
+('other', 'אחר (פרט)');

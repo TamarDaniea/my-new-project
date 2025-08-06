@@ -1,6 +1,6 @@
 const Favorite = require('../models/Favorite');
 const logEvent = require('../utils/logEvent');
-const UserActions = require('../utils/userActions');
+const UserActions = require('../utils/UserActions');
 
 
 
