@@ -20,6 +20,7 @@
     "i18next": "^25.2.1",
     "i18next-fs-backend": "^2.6.0",
     "i18next-http-middleware": "^3.7.4",
+    "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.14.1",
     "nodemailer": "^7.0.5"
   },
