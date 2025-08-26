@@ -1,15 +1,20 @@
 // src/models/User.js
 const db = require('../config/db'); // ודא/י שהנתיב לקובץ ה-db config נכון
+const bcrypt = require('bcryptjs');
+
 
 class User {
     static async create(userData) {
-        const { firebase_uid, name, email, role, city } = userData;
-        const created_at = new Date();
+        const { firebase_uid, name, email, password, role, city, created_at } = userData;
+        const createdAt = created_at || new Date();
+
         const sql = `
-            INSERT INTO users (firebase_uid, name, email, role, city, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `;
-        const values = [firebase_uid, name, email, role || 'user', city || null, created_at];
+        INSERT INTO users (firebase_uid, name, email, password, role, city, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+        const values = [firebase_uid, name, email, password, role || 'user', city || null, createdAt];
+
         try {
             const [result] = await db.execute(sql, values);
             return {
@@ -18,7 +23,7 @@ class User {
                 email,
                 role: role || 'user',
                 city: city || null,
-                created_at: created_at.toISOString()
+                created_at: createdAt.toISOString()
             };
         } catch (error) {
             if (error.code === 'ER_DUP_ENTRY') {
@@ -147,12 +152,12 @@ class User {
 
             return {
                 user: user,
-                posts: posts.map(post => ({ 
+                posts: posts.map(post => ({
                     ...post,
                     images: post.images ? JSON.parse(post.images) : null,
                     created_at: post.created_at ? new Date(post.created_at).toISOString() : null
                 })),
-                locations: locations.map(location => ({ 
+                locations: locations.map(location => ({
                     ...location,
                     images: location.images ? JSON.parse(location.images) : null,
                     created_at: location.created_at ? new Date(location.created_at).toISOString() : null
@@ -220,6 +225,19 @@ class User {
             ...row,
             created_at: row.created_at ? new Date(row.created_at).toISOString() : null
         }));
+
+    }
+
+    static async findOne({ where }) {
+        const { email } = where;
+        const sql = `SELECT * FROM users WHERE email = ? LIMIT 1`;
+        const [rows] = await db.execute(sql, [email]);
+        if (rows.length === 0) return null;
+        return rows[0]; // מחזיר את השורה הראשונה
+    }
+
+    static async comparePassword(plainPassword, hashedPassword) {
+        return await bcrypt.compare(plainPassword, hashedPassword);
     }
 }
 

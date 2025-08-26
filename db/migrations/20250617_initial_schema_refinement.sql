@@ -321,3 +321,6 @@ INSERT INTO report_reasons (reason_key, description_he) VALUES
 ('irrelevant_fake_images', 'תמונות לא רלוונטיות / מזויפות'),
 ('unauthorized_commercial', 'פרסום מסחרי לא מורשה'),
 ('other', 'אחר (פרט)');
+
+ALTER TABLE users
+ADD COLUMN password VARCHAR(255) NOT NULL;

@@ -1,8 +1,13 @@
 // src/controllers/usersController.js
 const User = require('../models/User');
-// const { registerUser } = require('../services/createVerificationEmail.js');
 const logEvent = require('../utils/logEvent');
 const db = require('../config/db');
+const { generateToken } = require('../utils/jwt');
+const bcrypt = require('bcryptjs');
+
+
+
+
 
 
 const usersController = {
@@ -34,12 +39,76 @@ const usersController = {
             res.status(500).json({ message: req.t('users.fetch_error'), error: error.message });
         }
     },
+    // createUser: async (req, res) => {
+    //     try {
+    //         const { firebase_uid, name, email, password, role, city } = req.body;
+
+    //         // בדיקת שדות חובה
+    //         if (!name || !email || !password) {
+    //             return res.status(400).json({ message: req.t('users.missing_fields') });
+    //         }
+
+    //         // ולידציות בסיסיות
+    //         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    //         if (!emailRegex.test(email)) {
+    //             return res.status(400).json({ message: req.t('users.invalid_email') });
+    //         }
+
+    //         if (name.trim().length < 2) {
+    //             return res.status(400).json({ message: req.t('users.invalid_name') });
+    //         }
+
+    //         if (password.length < 6) {
+    //             return res.status(400).json({ message: req.t('users.invalid_password') }); // ודאי שיש מפתח כזה בקובץ i18n
+    //         }
+
+    //         // 1. יצירת משתמש ב-Firebase + שליחת מייל אימות
+    //         // const firebaseUser = await registerUser(email, password);
+    //         const bcrypt = require('bcryptjs');
+    //         const hashedPassword = await bcrypt.hash(password, 10);
+    //         // 2. שמירת המשתמש במסד הנתונים שלך (MySQL)
+    //         const userData = {
+    //             firebase_uid: firebase_uid || null,
+    //             name,
+    //             email,
+    //             password: hashedPassword,
+    //             role: role || 'user',
+    //             city: city || null
+    //         };
+
+    //         const newUser = await User.create(userData);
+    //         await logEvent('CREATE_USER', `New user created: ${newUser.name} (${newUser.firebase_uid})`, newUser.firebase_uid);
+
+    //         const token = generateToken({
+    //             id: newUser.id,
+    //             role: newUser.role,
+    //             name: newUser.name,
+    //         });
+    //         // 3. החזרה ללקוח
+    //         res.status(201).json({ message: req.t('users.create_success'), user: newUser, token });
+
+    //     } catch (error) {
+    //         console.error('Error creating user:', error);
+
+    //         // טיפול בשגיאת כפילות משתמש
+    //         if (error.code === 'ER_DUP_ENTRY') {
+    //             return res.status(409).json({ message: req.t('users.duplicate_user') });
+    //         }
+
+    //         // שגיאת Firebase – כמו אימייל שכבר קיים
+    //         if (error.code === 'auth/email-already-exists') {
+    //             return res.status(409).json({ message: req.t('users.firebase_email_exists') });
+    //         }
+
+    //         res.status(500).json({ message: req.t('users.create_error'), error: error.message });
+    //     }
+    // },
     createUser: async (req, res) => {
         try {
-            const { name, email, password } = req.body;
+            const { firebase_uid, name, email, password, role, city } = req.body;
 
             // בדיקת שדות חובה
-            if (!name || !email || !password) {
+            if (!firebase_uid || !name || !email || !password) {
                 return res.status(400).json({ message: req.t('users.missing_fields') });
             }
 
@@ -54,35 +123,49 @@ const usersController = {
             }
 
             if (password.length < 6) {
-                return res.status(400).json({ message: req.t('users.invalid_password') }); // ודאי שיש מפתח כזה בקובץ i18n
+                return res.status(400).json({ message: req.t('users.invalid_password') });
             }
 
-            // 1. יצירת משתמש ב-Firebase + שליחת מייל אימות
-            const firebaseUser = await registerUser(email, password);
+            // הצפנת הסיסמה
+            const bcrypt = require('bcryptjs');
+            const hashedPassword = await bcrypt.hash(password, 10);
 
-            // 2. שמירת המשתמש במסד הנתונים שלך (MySQL)
+            // הכנת הנתונים לשמירה במסד
             const userData = {
-                firebase_uid: firebaseUser.uid,
+                firebase_uid,               // חייב להיות מסופק מהפרונט
                 name,
                 email,
-                role: 'user', // ברירת מחדל
+                password: hashedPassword,
+                role: role || 'user',       // ברירת מחדל
+                city: city || null
             };
 
+            console.log({ password, hashedPassword });
+
+            // שמירת המשתמש במסד
             const newUser = await User.create(userData);
+
+            // לוג של יצירת המשתמש
             await logEvent('CREATE_USER', `New user created: ${newUser.name} (${newUser.firebase_uid})`, newUser.firebase_uid);
 
-            // 3. החזרה ללקוח
-            res.status(201).json({ message: req.t('users.create_success'), user: newUser });
+            // יצירת טוקן (JWT) לשימוש עתידי
+            const token = generateToken({
+                id: newUser.id,
+                role: newUser.role,
+                name: newUser.name,
+            });
+
+            // החזרה ללקוח
+            res.status(201).json({ message: req.t('users.create_success'), user: newUser, token });
 
         } catch (error) {
             console.error('Error creating user:', error);
 
-            // טיפול בשגיאת כפילות משתמש
+            // טיפול בשגיאות נפוצות
             if (error.code === 'ER_DUP_ENTRY') {
                 return res.status(409).json({ message: req.t('users.duplicate_user') });
             }
 
-            // שגיאת Firebase – כמו אימייל שכבר קיים
             if (error.code === 'auth/email-already-exists') {
                 return res.status(409).json({ message: req.t('users.firebase_email_exists') });
             }
@@ -90,6 +173,7 @@ const usersController = {
             res.status(500).json({ message: req.t('users.create_error'), error: error.message });
         }
     },
+
 
     updateUserProfile: async (req, res) => {
         const { name, email, city } = req.body;
@@ -228,7 +312,7 @@ const usersController = {
     },
 
     // שליפת פריטים שנצפו לאחרונה (locations או posts)
-    getRecentViews:async (req, res) => {
+    getRecentViews: async (req, res) => {
         console.log('req.user:', req.user);
         const userId = req.user?.firebase_uid;
         const { type } = req.query;
@@ -267,6 +351,49 @@ const usersController = {
         } catch (error) {
             console.error('Error fetching recent views:', error);
             res.status(500).json({ message: 'Server error' });
+        }
+    },
+    loginUser: async (req, res) => {
+        try {
+            const { email, passwordHash } = req.body;
+            if (!email || !passwordHash) {
+                return res
+                    .status(400)
+                    .json({ message: "Email and password are required" });
+            }
+            const user = await User.findOne({ where: { email } });
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
+            }
+            const isPasswordValid = await bcrypt.compare(
+                passwordHash,
+                user.password
+            );
+            if (!isPasswordValid) {
+                return res.status(401).json({ message: "Invalid password" });
+            }
+
+            const token = generateToken({
+                firebase_uid:User.firebase_uid,
+                email,
+                role: 'user',
+                name: User.name,
+            });
+
+            res.status(200).json({
+                message: "Login successful",
+                token,
+                user: {
+                    firebase_uid:User.firebase_uid,
+                    name: User.name,
+                    email,
+                    role: 'user', // ברירת מחדל
+                },
+            });
+        } catch (error) {
+            return res
+                .status(500)
+                .json({ message: "Internal server error", error: error.message });
         }
     }
 

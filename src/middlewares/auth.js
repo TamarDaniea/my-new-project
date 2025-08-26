@@ -3,40 +3,38 @@ const admin = require('../firebase/fireBaseAdmin');
 const User = require('../models/User');
 
 const auth = async (req, res, next) => {
-    const authHeader = req.headers.authorization;
-   
+    // 1. קבלת הטוקן מה-header של הבקשה
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).send('No authorization token provided.');
+  }
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'No token provided' });
+  const idToken = authHeader.split('Bearer ')[1];
+
+  try {
+    // 2. אימות ופיענוח הטוקן באמצעות Firebase Admin SDK
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    
+    // 3. חילוץ הנתונים החשובים מהטוקן המפוענח
+    // עדכון: יצירת אובייקט מותאם אישית כדי להשתמש ב-firebase_uid
+    req.user = {
+      firebase_uid: decodedToken.uid,
+      // ניתן להוסיף כאן נתונים נוספים אם נדרש
+      // לדוגמה: role: decodedToken.role, name: decodedToken.name
+    };
+
+    console.log('User authenticated:', req.user.firebase_uid);
+    
+    // 4. המשך לנקודת הקצה הבאה בשרשרת
+    next();
+  } catch (error) {
+    // 5. טיפול בשגיאות
+    console.error('Error verifying Firebase ID token:', error);
+    if (error.code === 'auth/id-token-expired') {
+        return res.status(401).send('Authorization token expired.');
     }
-
-    const token = authHeader.split(' ')[1];
-
-    try {
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        const firebase_uid = decodedToken.uid;
-
-        if (!decodedToken.email_verified) {
-            return res.status(403).json({ error: 'Email not verified' });
-        }
-
-        const userFromDb = await User.getById(firebase_uid);
-        if (!userFromDb) {
-            return res.status(401).json({ error: 'User not found in database' });
-        }
-
-        req.user = {
-            firebase_uid,
-            role: userFromDb.role,
-            name: userFromDb.name,
-            email: userFromDb.email,
-        };
-
-        next();
-    } catch (error) {
-        console.error('Firebase authentication error:', error);
-        return res.status(401).json({ error: 'Invalid token or authentication failed' });
-    }
+    return res.status(401).send('Unauthorized: Invalid token.');
+  }
 };
 
 module.exports = auth;

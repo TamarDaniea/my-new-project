@@ -5,9 +5,10 @@ const usersController = require('../controllers/usersController');
 const auth = require('../middlewares/auth'); 
 
 
-// החל מידלוואר אימות (אמיתי או מזויף) על כל הראוטים בראוטר זה
-// השתמש ב-auth בסביבת Production וב-auth בסביבת פיתוח/בדיקות
-router.use(auth); // או router.use(auth);
+router.post('/', usersController.createUser);
+router.post('/login', usersController.loginUser);
+
+router.use(auth); 
 
 // ✅ קבלת כל המשתמשים (לשימוש אדמין) - דורש הרשאת אדמין
 router.get('/all', usersController.getAllUsers); // שיניתי את הנתיב כדי למנוע התנגשות עם /:firebaseUid
@@ -22,7 +23,6 @@ router.get('/recent-views', usersController.getRecentViews);
 // ניתן להזיז את ה-POST / מחוץ ל-router.use(auth).
 // כרגע, עם auth/auth על כל הראוטר, זה אומר שגם יצירת משתמש דורשת טוקן.
 // אם זה לא רצוי, יש להזיז ראוט זה מעל ה-router.use(auth);
-router.post('/', usersController.createUser);
 
 // ✅ קבלת משתמש לפי firebase_uid (פרופיל ציבורי או מלא בהתאם למשתמש)
 router.get('/:firebaseUid', usersController.getUserProfile);
@@ -32,6 +32,9 @@ router.put('/:firebaseUid', usersController.updateUserProfile);
 
 // ✅ מחיקת משתמש לפי firebase_uid (רק משתמש עצמו או אדמין)
 router.delete('/:firebaseUid', usersController.deleteUser);
+
+
+
 
 
 module.exports = router;

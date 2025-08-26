@@ -56,15 +56,15 @@ app.use(i18nextMiddleware.handle(i18n));
 // *** הגדרת ראוטים והחלת מידלווארים ***
 
 // ראוטים שדורשים אימות כללי (user או admin) - מידלוואר האימות בלבד
-app.use('/api/locations', auth, locationsRouter);
-app.use('/api/users', auth, usersRouter);
-app.use('/api/posts', auth, postsRouter);
-app.use('/api/comments', auth, commentsRouter);
-app.use('/api/favorites', auth, favoritesRouter);
-app.use('/api/votes', auth, votesRouter);
-app.use('/api/drafts', auth, draftsRouter);
-app.use('/api/logs', auth, logsRouter);
-app.use('/api/reports', auth, reportsRouter); // ראוטים לדיווחים - דורשים אימות משתמש
+app.use('/api/locations', locationsRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/posts', postsRouter);
+app.use('/api/comments', commentsRouter);
+app.use('/api/favorites', favoritesRouter);
+app.use('/api/votes', votesRouter);
+app.use('/api/drafts', draftsRouter);
+app.use('/api/logs', logsRouter);
+app.use('/api/reports', reportsRouter); // ראוטים לדיווחים - דורשים אימות משתמש
 app.use('/api/report-reasons', reportReasonsRoutes);
 
 // ראוטים שדורשים הרשאות אדמין ספציפיות:
