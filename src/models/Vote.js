@@ -108,7 +108,7 @@ const Vote = {
                 }
             }
         }
-        
+
         console.log(`[Vote.upsert] Finished. Action: ${action}, Delta: ${delta_like_count}`);
         return { action, delta_like_count };
     },
@@ -124,6 +124,12 @@ const Vote = {
         return result.affectedRows;
     },
 
+    getByUserId: async (userId) => {
+        const sql = `SELECT * FROM votes WHERE user_id = ?`;
+        const [rows] = await db.query(sql, [userId]);
+        return rows;
+    },
+
     // פונקציה לקבלת דירוג קיים עבור משתמש ופריט ספציפיים
     getByUserItem: async (user_id, item_type, item_id) => {
         const [rows] = await db.query(
@@ -132,7 +138,16 @@ const Vote = {
         );
         // console.log(`[Vote.getByUserItem] Result:`, rows[0]); // ניתן להפעיל לדיבוג במידת הצורך
         return rows[0];
+    },
+    countLikesByItem: async (item_type, item_id) => {
+        const [rows] = await db.query(
+            'SELECT SUM(CASE WHEN value = 1 THEN 1 ELSE 0 END) AS totalLikes FROM votes WHERE item_type = ? AND item_id = ?',
+            [item_type, item_id]
+        );
+        // אם אין תוצאות, הערך יהיה null, אז נחזיר 0
+        return rows[0].totalLikes || 0;
     }
+
 };
 
 module.exports = Vote;

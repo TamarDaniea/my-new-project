@@ -1,167 +1,86 @@
 // src/controllers/usersController.js
+
+// ייבוא מודלים וספריות נדרשות
 const User = require('../models/User');
+const Post = require('../models/Post');
+const Comment = require('../models/Comment');
+const Favorite = require('../models/Favorite');
+const Vote = require('../models/Vote');
 const logEvent = require('../utils/logEvent');
 const db = require('../config/db');
 const { generateToken } = require('../utils/jwt');
 const bcrypt = require('bcryptjs');
+const admin = require('../firebase/fireBaseAdmin'); // ייבוא המודול המתוקן של Firebase Admin
 
-
-
-
-
-
+// הגדרת אובייקט הבקר
 const usersController = {
-    getUserProfile: async (req, res) => {
-        try {
-            const requestedFirebaseUid = req.params.firebaseUid; // ה-UID של הפרופיל המבוקש
-            const currentUserUid = req.user ? req.user.firebase_uid : null; // ה-UID של המשתמש המחובר (אם קיים)
 
-            if (!requestedFirebaseUid) {
-                return res.status(400).json({ message: req.t('users.uid_required') });
-            }
-
-            let userData;
-            // אם המשתמש מחובר והוא מבקש את הפרופיל שלו עצמו
-            if (currentUserUid && requestedFirebaseUid === currentUserUid) {
-                userData = await User.getById(requestedFirebaseUid); // קבל את כל הפרטים (כולל אימייל)
-            } else {
-                // אם המשתמש מבקש פרופיל של משתמש אחר, או שהוא לא מחובר
-                userData = await User.getPublicProfileData(requestedFirebaseUid); // קבל רק נתונים ציבוריים 
-            }
-
-            if (!userData || (userData.user && !userData.user.firebase_uid)) { // בודק גם עבור המבנה החדש של getPublicProfileData
-                return res.status(404).json({ message: req.t('users.not_found') });
-            }
-
-            res.status(200).json(userData);
-        } catch (error) {
-            console.error('Error fetching user profile:', error);
-            res.status(500).json({ message: req.t('users.fetch_error'), error: error.message });
-        }
-    },
-    // createUser: async (req, res) => {
-    //     try {
-    //         const { firebase_uid, name, email, password, role, city } = req.body;
-
-    //         // בדיקת שדות חובה
-    //         if (!name || !email || !password) {
-    //             return res.status(400).json({ message: req.t('users.missing_fields') });
-    //         }
-
-    //         // ולידציות בסיסיות
-    //         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    //         if (!emailRegex.test(email)) {
-    //             return res.status(400).json({ message: req.t('users.invalid_email') });
-    //         }
-
-    //         if (name.trim().length < 2) {
-    //             return res.status(400).json({ message: req.t('users.invalid_name') });
-    //         }
-
-    //         if (password.length < 6) {
-    //             return res.status(400).json({ message: req.t('users.invalid_password') }); // ודאי שיש מפתח כזה בקובץ i18n
-    //         }
-
-    //         // 1. יצירת משתמש ב-Firebase + שליחת מייל אימות
-    //         // const firebaseUser = await registerUser(email, password);
-    //         const bcrypt = require('bcryptjs');
-    //         const hashedPassword = await bcrypt.hash(password, 10);
-    //         // 2. שמירת המשתמש במסד הנתונים שלך (MySQL)
-    //         const userData = {
-    //             firebase_uid: firebase_uid || null,
-    //             name,
-    //             email,
-    //             password: hashedPassword,
-    //             role: role || 'user',
-    //             city: city || null
-    //         };
-
-    //         const newUser = await User.create(userData);
-    //         await logEvent('CREATE_USER', `New user created: ${newUser.name} (${newUser.firebase_uid})`, newUser.firebase_uid);
-
-    //         const token = generateToken({
-    //             id: newUser.id,
-    //             role: newUser.role,
-    //             name: newUser.name,
-    //         });
-    //         // 3. החזרה ללקוח
-    //         res.status(201).json({ message: req.t('users.create_success'), user: newUser, token });
-
-    //     } catch (error) {
-    //         console.error('Error creating user:', error);
-
-    //         // טיפול בשגיאת כפילות משתמש
-    //         if (error.code === 'ER_DUP_ENTRY') {
-    //             return res.status(409).json({ message: req.t('users.duplicate_user') });
-    //         }
-
-    //         // שגיאת Firebase – כמו אימייל שכבר קיים
-    //         if (error.code === 'auth/email-already-exists') {
-    //             return res.status(409).json({ message: req.t('users.firebase_email_exists') });
-    //         }
-
-    //         res.status(500).json({ message: req.t('users.create_error'), error: error.message });
-    //     }
-    // },
+    // פונקציית בקר ליצירת משתמש
     createUser: async (req, res) => {
         try {
-            const { firebase_uid, name, email, password, role, city } = req.body;
+            const { idToken, name, role, city } = req.body;
 
-            // בדיקת שדות חובה
-            if (!firebase_uid || !name || !email || !password) {
+            if (!idToken || !name) {
                 return res.status(400).json({ message: req.t('users.missing_fields') });
             }
 
-            // ולידציות בסיסיות
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                return res.status(400).json({ message: req.t('users.invalid_email') });
+            let decodedToken;
+            try {
+                decodedToken = await admin.auth().verifyIdToken(idToken);
+            } catch (authError) {
+                console.error("Firebase auth error:", authError);
+                return res.status(401).json({ message: req.t('users.invalid_token'), error: authError.message });
+            }
+            
+            const firebase_uid = decodedToken.uid;
+            const email = decodedToken.email;
+
+            // בדיקה אם המשתמש כבר קיים לפי firebase_uid
+            let user = await User.getById(firebase_uid);
+
+            if (user) {
+                // אם המשתמש כבר קיים, נחזיר שגיאת קונפליקט
+                return res.status(409).json({ message: req.t('users.duplicate_user') });
+            }
+            
+            // יצירת המשתמש במסד הנתונים
+            try {
+                console.log('Attempting to create user in the database...');
+                user = await User.create({
+                    firebase_uid,
+                    name,
+                    email,
+                    role: role || 'user',
+                    city: city || null
+                });
+                console.log('User created successfully in the database.');
+            } catch (dbError) {
+                console.error('Database user creation error:', dbError);
+                return res.status(500).json({ 
+                    message: req.t('users.create_error'), 
+                    error: `Database error: ${dbError.message}` 
+                });
             }
 
-            if (name.trim().length < 2) {
-                return res.status(400).json({ message: req.t('users.invalid_name') });
+            if (!user) {
+                // בדיקה אם יצירת המשתמש נכשלה מסיבה לא ידועה
+                return res.status(500).json({ message: req.t('users.create_error') });
             }
 
-            if (password.length < 6) {
-                return res.status(400).json({ message: req.t('users.invalid_password') });
-            }
+            await logEvent('CREATE_USER', `New user created: ${user.name} (${user.firebase_uid})`, user.firebase_uid);
 
-            // הצפנת הסיסמה
-            const bcrypt = require('bcryptjs');
-            const hashedPassword = await bcrypt.hash(password, 10);
-
-            // הכנת הנתונים לשמירה במסד
-            const userData = {
-                firebase_uid,               // חייב להיות מסופק מהפרונט
-                name,
-                email,
-                password: hashedPassword,
-                role: role || 'user',       // ברירת מחדל
-                city: city || null
-            };
-
-            console.log({ password, hashedPassword });
-
-            // שמירת המשתמש במסד
-            const newUser = await User.create(userData);
-
-            // לוג של יצירת המשתמש
-            await logEvent('CREATE_USER', `New user created: ${newUser.name} (${newUser.firebase_uid})`, newUser.firebase_uid);
-
-            // יצירת טוקן (JWT) לשימוש עתידי
             const token = generateToken({
-                id: newUser.id,
-                role: newUser.role,
-                name: newUser.name,
+                id: user.id,
+                role: user.role,
+                name: user.name
             });
 
-            // החזרה ללקוח
-            res.status(201).json({ message: req.t('users.create_success'), user: newUser, token });
+            res.status(201).json({ message: req.t('users.create_success'), user, token });
 
         } catch (error) {
             console.error('Error creating user:', error);
 
-            // טיפול בשגיאות נפוצות
+            // טיפול בשגיאות ספציפיות
             if (error.code === 'ER_DUP_ENTRY') {
                 return res.status(409).json({ message: req.t('users.duplicate_user') });
             }
@@ -170,11 +89,61 @@ const usersController = {
                 return res.status(409).json({ message: req.t('users.firebase_email_exists') });
             }
 
+            // החזרת שגיאה כללית אם לא מדובר באחת השגיאות הספציפיות
             res.status(500).json({ message: req.t('users.create_error'), error: error.message });
         }
     },
 
+    // פונקציית בקר לכניסת משתמש
+    loginUser: async (req, res) => {
+        try {
+            const { email, password } = req.body;
+            if (!email || !password) {
+                return res.status(400).json({ message: "Email and password are required" });
+            }
+            let user = await User.findOne({ where: { email } });
+            if (!user) {
+                // אם המשתמש לא קיים ב-SQL, ננסה לשלוף אותו מ-Firebase ולהכניס ל-DB
+                // כאן אפשר להוסיף שליפה מ-Firebase לפי אימייל (אם יש צורך)
+                // כרגע ניצור משתמש חדש ב-SQL
+                user = await User.create({
+                    firebase_uid: null, // אם יש לך אפשרות לשלוף UID מ-Firebase, תכניס כאן
+                    name: '',
+                    email,
+                    role: 'user',
+                    city: null
+                });
+            }
+            // השוואה בין הסיסמה שהתקבלה מהבקשה לסיסמה במסד הנתונים
+            const isPasswordValid = await bcrypt.compare(password, user.password);
+            if (!isPasswordValid) {
+                return res.status(401).json({ message: "Invalid password" });
+            }
 
+            const token = generateToken({
+                firebase_uid: user.firebase_uid,
+                email,
+                role: user.role || 'user',
+                name: user.name,
+            });
+
+            res.status(200).json({
+                message: "Login successful",
+                token,
+                user: {
+                    firebase_uid: user.firebase_uid,
+                    name: user.name,
+                    email,
+                    role: user.role || 'user',
+                },
+            });
+        } catch (error) {
+            console.error('Login error:', error);
+            return res.status(500).json({ message: "Internal server error", error: error.message });
+        }
+    },
+
+    // פונקציית בקר לעדכון פרופיל משתמש
     updateUserProfile: async (req, res) => {
         const { name, email, city } = req.body;
         const firebaseUidToUpdate = req.params.firebaseUid;
@@ -223,8 +192,7 @@ const usersController = {
 
             const affectedRows = await User.update(firebaseUidToUpdate, fieldsToUpdate);
             if (affectedRows === 0) {
-                // זה יכול לקרות אם כל השדות שונו לערכים זהים, או שהמשתמש לא נמצא (אבל כבר בדקנו למעלה)
-                const updatedUser = await User.getById(firebaseUidToUpdate); // שליפה חוזרת כדי לוודא אם אין שינויים אמיתיים
+                const updatedUser = await User.getById(firebaseUidToUpdate);
                 return res.status(200).json({
                     message: req.t('users.no_changes'),
                     user: updatedUser
@@ -244,10 +212,11 @@ const usersController = {
         }
     },
 
+    // פונקציית בקר למחיקת משתמש
     deleteUser: async (req, res) => {
         try {
             const firebaseUidToDelete = req.params.firebaseUid;
-            const currentUserUid = req.user?.firebase_uid; // מי מבצע את המחיקה
+            const currentUserUid = req.user?.firebase_uid;
 
             if (!currentUserUid) {
                 return res.status(401).json({ message: req.t('users.unauthorized_delete') });
@@ -256,7 +225,6 @@ const usersController = {
             const currentUser = await User.getById(currentUserUid);
             const isAdmin = currentUser && currentUser.role === 'admin';
 
-            // רק אדמין יכול למחוק כל משתמש, משתמש רגיל יכול למחוק רק את עצמו
             if (!isAdmin && firebaseUidToDelete !== currentUserUid) {
                 return res.status(403).json({ message: req.t('users.forbidden_delete') });
             }
@@ -275,10 +243,9 @@ const usersController = {
         }
     },
 
+    // פונקציית בקר לקבלת כל המשתמשים
     getAllUsers: async (req, res) => {
         try {
-            // הוסף בדיקת הרשאות אדמין לראוט זה אם נדרש
-            // לדוגמה: if (!req.user || req.user.role !== 'admin') { return res.status(403).json({ message: req.t('users.forbidden_admin_access') }); }
             const users = await User.getAll();
             res.status(200).json(users);
         } catch (error) {
@@ -286,6 +253,8 @@ const usersController = {
             res.status(500).json({ message: req.t('users.fetch_all_error'), error: error.message });
         }
     },
+
+    // פונקציית בקר לחיפוש משתמשים
     searchUsers: async (req, res) => {
         try {
             const userId = req.user ? req.user.firebase_uid : null;
@@ -311,7 +280,7 @@ const usersController = {
         }
     },
 
-    // שליפת פריטים שנצפו לאחרונה (locations או posts)
+    // פונקציית בקר לקבלת פריטים שנצפו לאחרונה
     getRecentViews: async (req, res) => {
         console.log('req.user:', req.user);
         const userId = req.user?.firebase_uid;
@@ -322,12 +291,11 @@ const usersController = {
         }
 
         try {
-            // שליפת 10 אחרונים מהשבוע האחרון
             const [views] = await db.execute(
                 `SELECT item_id FROM user_actions
-       WHERE user_id = ? AND action = ? AND timestamp >= NOW() - INTERVAL 7 DAY
-       ORDER BY timestamp DESC
-       LIMIT 10`,
+                WHERE user_id = ? AND action = ? AND timestamp >= NOW() - INTERVAL 7 DAY
+                ORDER BY timestamp DESC
+                LIMIT 10`,
                 [userId, `view_${type}`]
             );
 
@@ -337,14 +305,12 @@ const usersController = {
 
             const ids = views.map(v => v.item_id);
 
-            // שליפת הפריטים עצמם
             const [items] = await db.query(
                 `SELECT * FROM ${type === 'location' ? 'locations' : 'posts'}
-       WHERE id IN (${ids.map(() => '?').join(',')})`,
+                WHERE id IN (${ids.map(() => '?').join(',')})`,
                 ids
             );
 
-            // החזרת הפריטים לפי הסדר שנצפו
             const sortedItems = ids.map(id => items.find(item => item.id === id));
 
             res.json(sortedItems);
@@ -353,50 +319,153 @@ const usersController = {
             res.status(500).json({ message: 'Server error' });
         }
     },
-    loginUser: async (req, res) => {
+    // מחזירה את כל הפעולות שבוצעו על ידי משתמש מסוים.
+
+    getUserActions: async (req, res) => {
         try {
-            const { email, passwordHash } = req.body;
-            if (!email || !passwordHash) {
-                return res
-                    .status(400)
-                    .json({ message: "Email and password are required" });
+            const requestedFirebaseUid = req.params.firebaseUid;
+            const currentUserUid = req.user ? req.user.firebase_uid : null;
+
+            // בדיקת אימות בסיסית: ודאי שיש משתמש מחובר.
+            if (!currentUserUid) {
+                return res.status(401).json({ message: req.t('users.unauthorized') });
             }
-            const user = await User.findOne({ where: { email } });
-            if (!user) {
-                return res.status(404).json({ message: "User not found" });
+
+            // כדי למנוע גישה למידע פרטי של משתמשים אחרים,
+            // נאפשר למשתמש לראות רק את הפעולות שלו.
+            if (requestedFirebaseUid !== currentUserUid) {
+                return res.status(403).json({ message: req.t('users.forbidden') });
             }
-            const isPasswordValid = await bcrypt.compare(
-                passwordHash,
-                user.password
+
+            // קריאה למסד הנתונים כדי לשלוף את הפעולות
+            const [rows] = await db.execute(
+                `SELECT * FROM user_actions WHERE user_id = ? ORDER BY timestamp DESC`,
+                [requestedFirebaseUid]
             );
-            if (!isPasswordValid) {
-                return res.status(401).json({ message: "Invalid password" });
+
+            // החזרת הנתונים ששונפו
+            res.status(200).json(rows);
+        } catch (error) {
+            console.error('Error fetching user actions:', error);
+            res.status(500).json({ message: req.t('users.actions_fetch_error'), error: error.message });
+        }
+    },
+
+    getUserHistory: async (req, res) => {
+        try {
+            const requestedFirebaseUid = req.params.firebaseUid;
+            const currentUserUid = req.user ? req.user.firebase_uid : null;
+
+            if (!currentUserUid || requestedFirebaseUid !== currentUserUid) {
+                return res.status(403).json({ message: req.t('users.forbidden') });
             }
 
-            const token = generateToken({
-                firebase_uid:User.firebase_uid,
-                email,
-                role: 'user',
-                name: User.name,
-            });
+            // שלב 1: שלוף פעולות שונות ממסד הנתונים באופן מקבילי
+            const [userPosts, userComments, userFavorites, userVotes] = await Promise.all([
+                Post.getByFirebaseUid(requestedFirebaseUid),
+                Comment.getByFirebaseUid(requestedFirebaseUid),
+                Favorite.getByFirebaseUid(requestedFirebaseUid),
+                Vote.getByFirebaseUid(requestedFirebaseUid)
+            ]);
+            
+            // שלב 2: תאם את הפורמט של כל פעולה
+            const mappedPosts = userPosts.map(p => ({
+                type: 'post',
+                id: p.id,
+                description: p.title,
+                createdAt: p.createdAt
+            }));
 
-            res.status(200).json({
-                message: "Login successful",
-                token,
-                user: {
-                    firebase_uid:User.firebase_uid,
-                    name: User.name,
-                    email,
-                    role: 'user', // ברירת מחדל
-                },
-            });
+            const mappedComments = userComments.map(c => ({
+                type: 'comment',
+                id: c.id,
+                description: c.content,
+                createdAt: c.createdAt
+            }));
+
+            const mappedFavorites = userFavorites.map(f => ({
+                type: 'favorite',
+                id: f.id,
+                description: `Favorited an item of type ${f.item_type} with ID ${f.id}`,
+                createdAt: f.createdAt
+            }));
+
+            const mappedVotes = userVotes.map(v => ({
+                type: v.value === 1 ? 'like' : 'dislike',
+                id: v.id,
+                description: `${v.value === 1 ? 'Liked' : 'Disliked'} an item of type ${v.item_type}`,
+                createdAt: v.createdAt
+            }));
+            // שלב 3: אחד את כל הפעולות לרשימה אחת
+            const allActions = [...mappedPosts, ...mappedComments, ...mappedFavorites, ...mappedVotes];
+
+            // שלב 4: מיין את הרשימה לפי תאריך יצירה (מהחדש לישן)
+            allActions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            // שלב 5: החזר את התוצאה
+            res.status(200).json(allActions);
+
         } catch (error) {
-            return res
-                .status(500)
-                .json({ message: "Internal server error", error: error.message });
+            console.error('Error fetching user history:', error);
+            res.status(500).json({ message: req.t('users.history_fetch_error'), error: error.message });
+        }
+    },
+
+
+    // פונקציה לייבוא כל המשתמשים מ-Firebase ל-SQL
+    importFirebaseUsersToSQL: async (req, res) => {
+        try {
+            const allUsers = [];
+            let nextPageToken;
+            do {
+                const result = await admin.auth().listUsers(1000, nextPageToken);
+                allUsers.push(...result.users);
+                nextPageToken = result.pageToken;
+            } while (nextPageToken);
+
+            let importedCount = 0;
+            for (const fbUser of allUsers) {
+                let user = await User.getById(fbUser.uid);
+                if (!user) {
+                    await User.create({
+                        firebase_uid: fbUser.uid,
+                        name: fbUser.displayName || '',
+                        email: fbUser.email || '',
+                        role: 'user',
+                        city: null
+                    });
+                    importedCount++;
+                }
+            }
+            res.status(200).json({ message: `Imported ${importedCount} users from Firebase to SQL.` });
+        } catch (error) {
+            console.error('Error importing users from Firebase:', error);
+            res.status(500).json({ message: 'Error importing users from Firebase', error: error.message });
+        }
+    },
+
+    getUserProfile: async (req, res) => {
+        try {
+            const firebaseUid = req.params.firebaseUid;
+            const user = await User.getById(firebaseUid);
+
+            if (!user) {
+                return res.status(404).json({ message: req.t('users.not_found') });
+            }
+
+            // הסר מידע רגיש לפני שליחה
+            const publicProfile = {
+                name: user.name,
+                city: user.city,
+                role: user.role
+            };
+
+            res.status(200).json(publicProfile);
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+            res.status(500).json({ message: req.t('users.profile_fetch_error'), error: error.message });
         }
     }
-
 };
 
 module.exports = usersController;

@@ -191,6 +191,26 @@ const values = [post_id || null, location_id || null, user_id, content, parent_i
         const [rows] = await db.execute(sql, [itemId]);
         return rows;
     }
+
+     static async getCommentsByUserId(userId) {
+        const sql = `
+            SELECT 
+                c.*, 
+                u.name AS user_name, 
+                u.firebase_uid
+            FROM 
+                comments c
+            JOIN 
+                users u ON c.user_id = u.firebase_uid
+            WHERE 
+                c.user_id = ?
+            ORDER BY 
+                c.created_at DESC
+        `;
+        const [rows] = await db.execute(sql, [userId]);
+        return rows;
+    }
+
     
 }
 

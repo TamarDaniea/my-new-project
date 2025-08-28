@@ -322,5 +322,7 @@ INSERT INTO report_reasons (reason_key, description_he) VALUES
 ('unauthorized_commercial', 'פרסום מסחרי לא מורשה'),
 ('other', 'אחר (פרט)');
 
-ALTER TABLE users
-ADD COLUMN password VARCHAR(255) NOT NULL;
+
+-- ALTER TABLE users
+-- ADD COLUMN password VARCHAR(255) NOT NULL;
+ALTER TABLE users DROP COLUMN password;

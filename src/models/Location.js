@@ -109,7 +109,47 @@ class Location {
         }
         return null;
     }
-
+    static async getByUserId(userId) {
+        try {
+            const sql = `
+                SELECT
+                    l.id,
+                    l.name,
+                    l.lat,
+                    l.lng,
+                    l.description,
+                    l.images,
+                    l.like_count,
+                    l.comment_count,
+                    l.created_at,
+                    l.country,
+                    l.area,
+                    l.city,
+                    c.name AS category_name,
+                    u.name AS user_name,
+                    l.user_id AS firebase_uid,
+                    c.id AS category_id
+                FROM
+                    locations l
+                LEFT JOIN
+                    categories c ON l.category_id = c.id
+                LEFT JOIN
+                    users u ON l.user_id = u.firebase_uid
+                WHERE l.user_id = ? AND l.is_deleted = false
+                ORDER BY
+                    l.created_at DESC
+            `;
+            const [rows] = await db.execute(sql, [userId]);
+            return rows.map(row => ({
+                ...row,
+                images: safeJsonParseArray(row.images),
+                created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+            }));
+        } catch (error) {
+            console.error('Error fetching locations by user ID:', error);
+            throw error;
+        }
+    }
     // שיטה לעדכון מיקום
     static async update(id, locationData) {
         // NEW: Added country, area, city to allowedFields

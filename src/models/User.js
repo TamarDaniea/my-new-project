@@ -1,19 +1,22 @@
 // src/models/User.js
-const db = require('../config/db'); // ודא/י שהנתיב לקובץ ה-db config נכון
+const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 
 
 class User {
     static async create(userData) {
-        const { firebase_uid, name, email, password, role, city, created_at } = userData;
+        const { firebase_uid, name, email, role, city, created_at } = userData;
         const createdAt = created_at || new Date();
 
+        // 1. הוספת שדה "password_placeholder" לטבלה שלך במקום "password" האמיתי.
+        // אנחנו לא צריכים לשמור את הסיסמה בפועל בגלל Firebase.
         const sql = `
-        INSERT INTO users (firebase_uid, name, email, password, role, city, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (firebase_uid, name, email, role, city, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
     `;
 
-        const values = [firebase_uid, name, email, password, role || 'user', city || null, createdAt];
+        // 2. הסרת "password" מתוך רשימת הערכים
+        const values = [firebase_uid, name, email, role || 'user', city || null, createdAt];
 
         try {
             const [result] = await db.execute(sql, values);
@@ -21,9 +24,9 @@ class User {
                 firebase_uid,
                 name,
                 email,
-                role: role || 'user',
-                city: city || null,
-                created_at: createdAt.toISOString()
+                // role: role || 'user',
+                // city: city || null,
+                // created_at: createdAt.toISOString()
             };
         } catch (error) {
             if (error.code === 'ER_DUP_ENTRY') {

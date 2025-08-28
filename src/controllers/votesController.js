@@ -134,7 +134,26 @@ const votesController = {
         } finally {
             console.log('--- End addOrUpdateVote (finally block) ---'); // <--- חדש
         }
+    },
+     deleteVote: async (req, res) => {
+    try {
+        const { userId, itemType, itemId } = req.params;
+        console.log(`[Controller] Request to delete vote for user ${userId} on ${itemType} ${itemId}`);
+
+        // הקונטרולר מפעיל את הפונקציה המתאימה מהמודל
+        const affectedRows = await Vote.delete(userId, itemType, itemId);
+
+        if (affectedRows > 0) {
+            res.status(200).json({ success: true, message: 'Vote removed successfully' });
+        } else {
+            res.status(404).json({ success: false, message: 'Vote not found' });
+        }
+
+    } catch (error) {
+        console.error('Error in votesController.deleteVote:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
+}
 };
 
 module.exports = votesController;

@@ -186,6 +186,50 @@ class Post {
         }
     }
 
+    static async getByUserId(userId) {
+        try {
+            const sql = `
+                SELECT
+                    p.id,
+                    p.title,
+                    p.content,
+                    p.images,
+                    p.like_count,
+                    p.comment_count,
+                    p.created_at,
+                    p.is_deleted,
+                    u.name AS user_name,
+                    p.user_id AS firebase_uid,
+                    l.name AS location_name,
+                    l.id AS location_id,
+                    c.name AS category_name,
+                    c.id AS category_id
+                FROM
+                    posts p
+                LEFT JOIN
+                    users u ON p.user_id = u.firebase_uid
+                LEFT JOIN
+                    locations l ON p.location_id = l.id
+                LEFT JOIN
+                    categories c ON p.category_id = c.id
+                WHERE
+                    p.user_id = ? AND p.is_deleted = FALSE
+                ORDER BY
+                    p.created_at DESC
+            `;
+            const [rows] = await db.execute(sql, [userId]);
+            return rows.map(row => ({
+                ...row,
+                images: safeJsonParseArray(row.images),
+                created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+            }));
+        } catch (error) {
+            console.error('Error fetching posts by user ID:', error);
+            throw error;
+        }
+    }
+
+
 
     // /**
     //  * שיטה לקבלת פוסט לפי ID.
