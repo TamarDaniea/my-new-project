@@ -22,7 +22,7 @@ router.put('/:id', auth, locationsController.updateLocation);
 
 // DELETE location by ID - דורש אימות משתמש
 router.delete('/:id', auth, locationsController.deleteLocation);
-
+//
 // // POST add like to location (simple increment/decrement) - דורש אימות משתמש
 // router.post('/:locationId/like', auth, locationsController.addLikeToLocation);
 
