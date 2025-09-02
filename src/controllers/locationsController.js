@@ -5,6 +5,9 @@ const User = require('../models/User');
 const { validationResult } = require('express-validator');
 const logEvent = require('../utils/logEvent');
 const UserActions = require('../utils/UserActions');
+const fs = require('fs/promises'); // ייבוא מודול לטיפול בקבצים
+const path = require('path');
+
 
 
 
@@ -31,16 +34,14 @@ const locationsController = {
                 return res.status(400).json({ message: 'Latitude and longitude must be valid numbers.' });
             }
 
-            const offset = (parseInt(page) - 1) * parseInt(limit);
-
-            // שליפת נתונים עם פאג’ינציה
+            // שליפת נתונים עם פאג'ינציה וסינון
             const { items, totalCount } = await Location.findLocations({
                 name, category, lat, lng, radius, country, area, city,
+                page: parseInt(page),
                 limit: parseInt(limit),
-                offset
             });
 
-            const hasMore = offset + parseInt(limit) < totalCount;
+            const hasMore = (parseInt(page) * parseInt(limit)) < totalCount;
 
             res.status(200).json({
                 items,
@@ -55,17 +56,22 @@ const locationsController = {
 
     // יצירת מיקום חדש
     createLocation: async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
         try {
-            const locationData = req.body;
+            const { images, ...locationData } = req.body; // חילוץ התמונות משאר הנתונים
+
             if (!req.user || !req.user.firebase_uid) {
                 return res.status(401).json({ message: req.t('locations.unauthorized') });
             }
 
             locationData.user_id = req.user.firebase_uid;
 
-            // NEW: Validate country, area, city if they are mandatory
-            const { name, lat, lng, category_id, country, area, city } = locationData;
-            if (!name || !lat || !lng || !category_id) { // Consider making country, area, city mandatory if needed
+            const { name, lat, lng, category_id } = locationData;
+            if (!name || !lat || !lng || !category_id) {
                 return res.status(400).json({ message: req.t('locations.missing_fields') });
             }
 
@@ -74,22 +80,34 @@ const locationsController = {
                 return res.status(400).json({ message: req.t('locations.category_not_found') });
             }
 
-            const newLocation = await Location.create(locationData);
-            console.log(req.language)
-            await logEvent(
-                'CREATE',
-                `User ${req.user.firebase_uid} created location "${name}"`,
-                req.user.firebase_uid
-            );
+            // שלב 1: העברת התמונות הזמניות למקום הקבוע
+            if (images && images.length > 0) {
+                const tempDir = path.join(__dirname, '../uploads/temp');
+                const permanentDir = path.join(__dirname, '../uploads');
 
-            await UserActions.trackAction(
-                req.user.firebase_uid,
-                'create_location',
-                'location',
-                location.id
-            );
+                for (const imageName of images) {
+                    const tempPath = path.join(tempDir, imageName);
+                    const permPath = path.join(permanentDir, imageName);
+                    try {
+                        await fs.rename(tempPath, permPath);
+                    } catch (error) {
+                        // אם העברה נכשלת, יש לדווח על שגיאה
+                        console.error(`Failed to move image: ${imageName}`, error);
+                        // אופציונלי: מחיקת קבצים שכבר הועברו כדי למנוע חוסר עקביות
+                        return res.status(500).json({ message: 'Failed to save all images.', error: error.message });
+                    }
+                }
+            }
+
+            // שלב 2: שמירת הנתונים, כולל התמונות, במסד הנתונים
+            const newLocation = await Location.create(locationData, images); // העברת התמונות למודל
+
+            // ... הקוד הקיים של logEvent ו-UserActions
+            await logEvent('CREATE', `User ${req.user.firebase_uid} created location "${name}"`, req.user.firebase_uid);
+            await UserActions.trackAction(req.user.firebase_uid, 'create_location', 'location', newLocation.id);
 
             res.status(201).json({ message: req.t('locations.create_success'), location: newLocation });
+
         } catch (error) {
             console.error('Error creating location:', error);
             res.status(500).json({ message: req.t('locations.create_error'), error: error.message });
@@ -212,6 +230,50 @@ const locationsController = {
         } catch (error) {
             console.error('Error deleting location:', error);
             res.status(500).json({ message: req.t('locations.delete_error'), error: error.message });
+        }
+    },// קבלת מיקומים של משתמש ספציפי עם פגינציה
+    getUserLocationsPaginated: async (req, res) => {
+        try {
+            const { userId } = req.params;
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 6;
+
+            // בדיקת קיומו של המשתמש
+            const user = await User.getById(userId);
+            if (!user) {
+                return res.status(404).json({ message: req.t('users.not_found') });
+            }
+
+            // שליפת המיקומים מהמודל, תוך שימוש ב-limit וב-offset
+            const { items, totalCount } = await Location.getByUserIdPaginated({ userId, page, limit });
+
+            // חישוב האם יש עוד עמודים
+            const hasMore = (page * limit) < totalCount;
+
+            // שליחת התגובה
+            res.status(200).json({
+                items,
+                page,
+                hasMore
+            });
+
+        } catch (error) {
+            console.error('Error fetching user locations paginated:', error);
+            res.status(500).json({ message: req.t('locations.fetch_error'), error: error.message });
+        }
+    },
+
+    incrementViews: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const updatedViews = await Location.incrementViewCount(id);
+            if (updatedViews === null) {
+                return res.status(404).json({ message: 'Location not found' });
+            }
+            res.status(200).json({ views: updatedViews });
+        } catch (error) {
+            console.error('Error incrementing location views:', error);
+            res.status(500).json({ message: 'Error incrementing views' });
         }
     },
 };

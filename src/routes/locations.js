@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const locationsController = require('../controllers/locationsController');
 const auth = require('../middlewares/auth');
+const multer = require('multer');
+const upload = multer();
 
 
 // ראוטים למיקומים
@@ -10,62 +12,26 @@ const auth = require('../middlewares/auth');
 router.get('/', locationsController.searchLocations);
 
 // POST new location - דורש אימות משתמש
-router.post('/', auth, locationsController.createLocation);
+// router.post('/', auth, locationsController.createLocation);
+router.post(
+    '/',
+    auth,
+    upload.none(), // הוספת multer כ-middleware
+    locationsController.createLocation
+);
 
 // GET locations sorted by date
 router.get('/by-date', locationsController.getLocationsByDate);
 // GET location by ID
 router.get('/:id', locationsController.getLocationById);
 
+// GET locations by user ID with pagination
+router.get('/user/:userId', locationsController.getUserLocationsPaginated);
 // PUT update location by ID - דורש אימות משתמש
 router.put('/:id', auth, locationsController.updateLocation);
 
 // DELETE location by ID - דורש אימות משתמש
 router.delete('/:id', auth, locationsController.deleteLocation);
-//
-// // POST add like to location (simple increment/decrement) - דורש אימות משתמש
-// router.post('/:locationId/like', auth, locationsController.addLikeToLocation);
-
-// // DELETE remove like from location - דורש אימות משתמש
-// router.delete('/:locationId/like', auth, locationsController.removeLikeFromLocation);
-
+router.post('/:id/view', locationsController.incrementViews);
 
 module.exports = router;
-// const express = require('express');
-// const router = express.Router();
-// const locationsController = require('../controllers/locationsController');
-// const authMiddleware = require('../middlewares/auth'); // וודא שנתיב זה נכון!
-// // <<<<<<< HEAD
-// // //  const authenticate = require('../middlewares/auth');
-// // const auth = require('../middlewares/auth');
-// // =======
-// // // במידה ויהיה צורך באימות לראוטים מסוימים, יש להוסיף:
-// // // const { authenticateToken } = require('../middleware/authMiddleware'); 
-
-// // // GET all locations and search locations
-// // // נשתמש באותו ראוט '/' עבור קבלת כל המקומות וגם עבור חיפוש
-// // // הלוגיקה שתטפל בפרמטרי החיפוש תהיה בתוך locationsController.getAllLocations (שמה יהיה כעת searchLocations)
-// // router.get('/', locationsController.searchLocations); 
-// // >>>>>>> feature/search-locations-api
-
-// // POST new location
-// // יש לוודא ש-createLocation מטפלת באימות אם נדרש (לדוגמה, באמצעות middleware)
-// router.post('/', locationsController.createLocation); 
-
-// // GET location by ID
-// router.get('/:id', locationsController.getLocationById);
-
-// // PUT update location by ID
-// router.put('/:id', locationsController.updateLocation);
-
-// // DELETE location by ID
-// router.delete('/:id', locationsController.deleteLocation);
-
-// // POST add like to location (simple increment/decrement)
-// router.post('/:locationId/like', locationsController.addLikeToLocation);
-
-// // DELETE remove like from location
-// router.delete('/:locationId/like', locationsController.removeLikeFromLocation);
-// router.post('/', auth, locationsController.createLocation);
-
-// module.exports = router;

@@ -8,6 +8,45 @@ const UserActions = require('../utils/UserActions');
 
 const votesController = {
 
+    // שליפה של כל הלייקים לפריט
+    getLikes: async (req, res) => {
+        try {
+            const { itemType, itemId } = req.params;
+            const likes = await Vote.findAll({
+                where: { item_type: itemType, item_id: itemId, value: 1 }
+            });
+            res.status(200).json({ likes });
+        } catch (error) {
+            console.error('Error in getLikes:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    },
+    // הוסף בתוך האובייקט votesController
+    getUserVotes: async (req, res) => {
+        try {
+            const userId = req.user.firebase_uid; // קבלת ה-ID מה-auth middleware
+            const votes = await Vote.getByUserId(userId);
+            res.status(200).json({ votes });
+        } catch (error) {
+            console.error('Error in getUserVotes:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    },
+    // שליפה של ספירת הלייקים לפריט
+    getLikeCount: async (req, res) => {
+        try {
+            const { itemType, itemId } = req.params;
+            const count = await Vote.count({
+                where: { item_type: itemType, item_id: itemId, value: 1 }
+            });
+            res.status(200).json({ count });
+        } catch (error) {
+            console.error('Error in getLikeCount:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    },
+
+
     addOrUpdateVote: async (req, res) => {
 
 
@@ -111,7 +150,7 @@ const votesController = {
 
             await UserActions.trackAction(
                 req.user.firebase_uid,
-                `vote_${item_type}`, 
+                `vote_${item_type}`,
                 item_type,
                 item_id
             );
@@ -135,25 +174,27 @@ const votesController = {
             console.log('--- End addOrUpdateVote (finally block) ---'); // <--- חדש
         }
     },
-     deleteVote: async (req, res) => {
-    try {
-        const { userId, itemType, itemId } = req.params;
-        console.log(`[Controller] Request to delete vote for user ${userId} on ${itemType} ${itemId}`);
+    deleteVote: async (req, res) => {
+        try {
+            const userId = req.user.firebase_uid; // מה-auth middleware
 
-        // הקונטרולר מפעיל את הפונקציה המתאימה מהמודל
-        const affectedRows = await Vote.delete(userId, itemType, itemId);
+            const { itemType, itemId } = req.params;
+            console.log(`[Controller] Request to delete vote for user ${userId} on ${itemType} ${itemId}`);
 
-        if (affectedRows > 0) {
-            res.status(200).json({ success: true, message: 'Vote removed successfully' });
-        } else {
-            res.status(404).json({ success: false, message: 'Vote not found' });
+            // הקונטרולר מפעיל את הפונקציה המתאימה מהמודל
+            const affectedRows = await Vote.delete(userId, itemType, itemId);
+
+            if (affectedRows > 0) {
+                res.status(200).json({ success: true, message: 'Vote removed successfully' });
+            } else {
+                res.status(404).json({ success: false, message: 'Vote not found' });
+            }
+
+        } catch (error) {
+            console.error('Error in votesController.deleteVote:', error);
+            res.status(500).json({ success: false, message: 'Internal server error' });
         }
-
-    } catch (error) {
-        console.error('Error in votesController.deleteVote:', error);
-        res.status(500).json({ success: false, message: 'Internal server error' });
     }
-}
 };
 
 module.exports = votesController;

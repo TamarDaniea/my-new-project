@@ -2,6 +2,8 @@
 const Draft = require('../models/Draft');
 const { validationResult } = require('express-validator');
 const logEvent = require('../utils/logEvent');
+const fs = require('fs/promises'); // ייבוא מודול לטיפול בקבצים
+const path = require('path');
 
 
 const saveDraft = async (req, res) => {
@@ -91,34 +93,44 @@ const getDraftById = async (req, res) => {
     }
 };
 
-// *** פונקציית deleteDraft המעודכנת ***
 const deleteDraft = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.firebase_uid;
-    const userRole = req.user.role; // <--- קבל את תפקיד המשתמש מה-req.user
+    const userRole = req.user.role;
 
     try {
         const draftToDelete = await Draft.findById(id);
 
-        // 1. בדוק אם הטיוטה קיימת בכלל
         if (!draftToDelete) {
             return res.status(404).json({ message: 'Draft not found' });
         }
 
-        // 2. בדוק הרשאות:
-        //    א. אם המשתמש הוא הבעלים של הטיוטה (draftToDelete.user_id === userId),
-        //    ב. או אם המשתמש המחובר הוא אדמין (userRole === 'admin').
-        //    אם אף אחד מהתנאים לא מתקיים, המשתמש אינו מורשה.
         if (draftToDelete.user_id !== userId && userRole !== 'admin') {
             return res.status(403).json({ message: 'Forbidden: You do not have permission to delete this draft.' });
         }
 
-        // אם עבר את בדיקת ההרשאות (הוא הבעלים או אדמין), המשך למחיקה
-        const deleted = await Draft.delete(id);
-        if (deleted) {
+        // קריאה לפונקציית המחיקה במודל
+        const { affectedRows, imagesToDelete } = await Draft.delete(id);
+
+        if (affectedRows > 0) {
+            // מחיקת הקבצים הפיזיים מהתיקייה הזמנית
+            if (imagesToDelete && imagesToDelete.length > 0) {
+                const tempDir = path.join(__dirname, '../uploads/temp');
+                for (const imageName of imagesToDelete) {
+                    const imagePath = path.join(tempDir, imageName);
+                    try {
+                        await fs.unlink(imagePath);
+                        console.log(`Deleted temporary image: ${imageName}`);
+                    } catch (err) {
+                        console.error(`Error deleting image: ${imageName}`, err);
+                    }
+                }
+            }
+
             await logEvent('DELETE_DRAFT', `User ${userId} deleted draft ${id}`, userId);
             res.status(200).json({ message: 'Draft deleted successfully' });
         } else {
+            // אם לא נמחקה שורה, זה אומר שגם המחיקה לא בוצעה בפועל
             res.status(500).json({ message: 'Failed to delete draft' });
         }
     } catch (error) {

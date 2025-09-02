@@ -58,7 +58,6 @@ const commentsController = {
 
             const commentsFlat = await Comment.getHierarchicalComments(item_type, item_id);
 
-            // בניית עץ תגובות מהפלט השטוח
             const commentMap = {};
             const roots = [];
 
@@ -82,24 +81,6 @@ const commentsController = {
         }
     },
 
-
-    // פונקציה חדשה לשליפת תגובות לפי פרמטרי קוורי
-    getCommentsByItemByQuery: async (req, res) => {
-        try {
-            const { itemType, itemId } = req.query; // משתמשים ב-req.query
-
-            if (!itemType || !itemId || !['post', 'location'].includes(itemType)) {
-                return res.status(400).json({ message: req.t('comments.invalid_input') });
-            }
-
-            const comments = await Comment.getCommentsByItem(itemType, itemId);
-            res.status(200).json(comments);
-        } catch (error) {
-            console.error('Error fetching comments by query params:', error);
-            res.status(500).json({ message: req.t('comments.fetch_error'), error: error.message });
-        }
-    },
-
     deleteComment: async (req, res) => {
         try {
             const { id } = req.params;
@@ -110,8 +91,6 @@ const commentsController = {
                 return res.status(404).json({ message: req.t('comments.not_found') });
             }
 
-            // לוגיקת הרשאות למחיקה
-            // המשתמש יכול למחוק אם הוא בעל התגובה או אם הוא אדמין
             if (comment.user_id !== user_id && req.user.role !== 'admin') {
                 return res.status(403).json({ message: req.t('comments.unauthorized_delete') });
             }

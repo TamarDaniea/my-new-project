@@ -1,6 +1,7 @@
 // src/app.js
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const config = require('./config');
 const { connectToDatabase } = require('./utils/db');
 const i18n = require('./utils/i18n'); // ייבוא אובייקט ה-i18n המוגדר בקובץ utils/i18n.js
@@ -9,11 +10,10 @@ require('dotenv').config(); // טעינת משתני סביבה
 
 const app = express();
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // ייבוא מידלווארים
 const auth = require('./middlewares/auth');
-// const authMiddleware = require('./middlewares/auth'); // ה-authMiddleware האמיתי שלך מ-Firebase
-// const fakeAuthMiddleware = require('./middlewares/fakeAuth'); // ה-fakeAuth המעודכן
-const adminAuthMiddleware = require('./middlewares/adminAuth'); // המידלוואר לבדיקת אדמין (שיניתי את השם לבהירות)
+const adminAuthMiddleware = require('./middlewares/adminAuth'); // המידלוואר לבדיקת אדמין
 
 // ייבוא ראוטרים
 const locationsRouter = require('./routes/locations');
@@ -27,7 +27,7 @@ const favoritesRouter = require('./routes/favoritesRouter');
 const votesRouter = require('./routes/votes');
 const draftsRouter = require('./routes/drafts');
 const shabbatTimesRouter = require('./routes/shabbatTimes');
-const statsRouter = require('./routes/stats'); // ייבוא הראוטר עבור /api/admin/stats
+const statsRouter = require('./routes/stats');
 const reportReasonsRoutes = require('./routes/reportReasons');
 
 // Middleware כלליים
@@ -46,37 +46,28 @@ app.get('/', (req, res) => {
 // שימוש ב-middleware של i18n
 app.use(i18nextMiddleware.handle(i18n));
 
-// *** קביעת מידלוואר האימות לשימוש בהתאם לסביבה ***
-// משתמשים ב-fakeAuth לפיתוח ובדיקות מקומיות ללא צורך ב-Firebase ID Token.
-// משתמשים ב-authMiddleware (האמיתי) לפרודקשן או בדיקות הדורשות אימות Firebase אמיתי.
-// הגדר את NODE_ENV=production בקובץ .env או בפקודת ההרצה כדי להשתמש ב-authMiddleware האמיתי.
-// const auth = process.env.NODE_ENV === 'production' ? authMiddleware : fakeAuthMiddleware;
-
-
 // *** הגדרת ראוטים והחלת מידלווארים ***
 
+// ראוטים שלא דורשים אימות (כמו קטגוריות, זמני שבת)
+app.use('/api/categories', categoriesRouter);
+app.use('/api/shabbat-times', shabbatTimesRouter);
+
 // ראוטים שדורשים אימות כללי (user או admin) - מידלוואר האימות בלבד
-app.use('/api/locations', locationsRouter);
-app.use('/api/users', usersRouter);
-app.use('/api/posts', postsRouter);
-app.use('/api/comments', commentsRouter);
-app.use('/api/favorites', favoritesRouter);
-app.use('/api/votes', votesRouter);
-app.use('/api/drafts', draftsRouter);
-app.use('/api/logs', logsRouter);
-app.use('/api/reports', reportsRouter); // ראוטים לדיווחים - דורשים אימות משתמש
-app.use('/api/report-reasons', reportReasonsRoutes);
+app.use('/api/locations', auth, locationsRouter);
+app.use('/api/users', auth, usersRouter);
+app.use('/api/posts', auth, postsRouter);
+app.use('/api/comments', auth, commentsRouter);
+app.use('/api/favorites', auth, favoritesRouter);
+app.use('/api/votes', auth, votesRouter);
+app.use('/api/drafts', auth, draftsRouter);
+app.use('/api/logs', auth, logsRouter);
+app.use('/api/reports', auth, reportsRouter); // ראוטים לדיווחים - דורשים אימות משתמש
+app.use('/api/report-reasons', auth, reportReasonsRoutes);
 
 // ראוטים שדורשים הרשאות אדמין ספציפיות:
 // המידלווארים ירוצו לפי הסדר: auth (אימות), adminAuthMiddleware (בדיקת תפקיד אדמין), ואז הראוטר עצמו.
-app.use('/api/categories', auth, adminAuthMiddleware, categoriesRouter);
-app.use('/api/admin/stats', auth, adminAuthMiddleware, statsRouter); // <--- חשוב מאוד: הוספתי את שני המידלווארים כאן!
-// שים לב: אין צורך ב-router.get('/admin/stats', ...) כאן, כי statsRouter כבר מטפל בזה.
-
-
-// ראוטים שלא דורשים אימות (כמו זמני שבת)
-app.use('/api/shabbat-times', shabbatTimesRouter);
-
+app.use('/api/admin/categories', auth, adminAuthMiddleware, categoriesRouter);
+app.use('/api/admin/stats', auth, adminAuthMiddleware, statsRouter);
 
 // טיפול בשגיאות
 app.use((err, req, res, next) => {

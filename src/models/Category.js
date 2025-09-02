@@ -1,12 +1,21 @@
 const db = require('../config/db');
 
 class Category {
-    static async getAll() {
-        const sql = `SELECT * FROM categories ORDER BY name ASC`;
-        const [rows] = await db.execute(sql);
+    static async getAll(type) {
+        let sql = `SELECT * FROM categories`;
+        const params = [];
+
+        if (type) { // טיפול בפילטרציה
+            sql += ` WHERE type = ?`;
+            params.push(type);
+        }
+
+        sql += ` ORDER BY name ASC`;
+        const [rows] = await db.execute(sql, params);
         return rows;
     }
 
+    // שאר הפונקציות נשארות כפי שהן
     static async getById(id) {
         const sql = `SELECT * FROM categories WHERE id = ?`;
         const [rows] = await db.execute(sql, [id]);
@@ -14,22 +23,20 @@ class Category {
     }
 
     static async create(categoryData) {
-        const { name, name_he, image_url, type } = categoryData;
-        const sql = `INSERT INTO categories (name, name_he, image_url, type) VALUES (?, ?, ?, ?)`;
-        const [result] = await db.execute(sql, [name, name_he, image_url, type]);
+        const { name, type } = categoryData; // שינוי: קליטה רק של name ו-type, כפי שנדרש בקוד הלקוח
+        const sql = `INSERT INTO categories (name, type) VALUES (?, ?)`;
+        const [result] = await db.execute(sql, [name, type]);
         return {
             id: result.insertId,
             name,
-            name_he,
-            image_url,
             type
         };
     }
 
     static async update(id, categoryData) {
-        const { name, name_he, image_url, type } = categoryData;
-        const sql = `UPDATE categories SET name = ?, name_he = ?, image_url = ?, type = ? WHERE id = ?`;
-        const [result] = await db.execute(sql, [name, name_he, image_url, type, id]);
+        const { name, type } = categoryData; // שינוי: קליטה רק של name ו-type
+        const sql = `UPDATE categories SET name = ?, type = ? WHERE id = ?`;
+        const [result] = await db.execute(sql, [name, type, id]);
         return result.affectedRows;
     }
 

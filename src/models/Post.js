@@ -1,5 +1,4 @@
-// src/models/Post.js
-const db = require('../config/db'); // ודא/י שהנתיב לקובץ ה-db config נכון
+const db = require('../config/db');
 
 function safeJsonParseArray(value) {
     if (!value || typeof value !== 'string') return [];
@@ -16,43 +15,38 @@ class Post {
     /**
      * יוצר פוסט חדש במסד הנתונים.
      * @param {object} postData - אובייקט המכיל את פרטי הפוסט.
-     * צריך לכלול: title, content, images (כמערך), user_id, category_id, location_id (אופציונלי).
-     * like_count ו-comment_count יאותחלו ל-0.
      * @returns {Promise<object>} - אובייקט המייצג את הפוסט שנוצר, כולל ה-ID שלו.
      */
     static async create(postData) {
         const { title, content, images, user_id, category_id, location_id } = postData;
-        const created_at = new Date(); // הוספנו תאריך יצירה
-
+        const created_at = new Date();
         const sql = `
             INSERT INTO posts (title, content, images, user_id, category_id, location_id, created_at, like_count, comment_count, is_deleted)
             VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, FALSE)
         `;
-
         const values = [
             title,
             content,
-            JSON.stringify(images), // נשמר כמחרוזת JSON ב-DB
+            JSON.stringify(images),
             user_id,
-            category_id || null, // יכול להיות null אם אין קטגוריה (אבל האיפיון דורש קישור)
-            location_id || null, // אופציונלי
-            created_at // תאריך יצירה
+            category_id || null,
+            location_id || null,
+            created_at
         ];
-
         try {
             const [result] = await db.execute(sql, values);
             return {
                 id: result.insertId,
                 title,
                 content,
-                images: images, // נחזיר את המערך המקורי לצורך הנוחות
+                images: images,
                 user_id,
                 category_id: category_id || null,
                 location_id: location_id || null,
                 created_at: created_at.toISOString(),
                 like_count: 0,
                 comment_count: 0,
-                is_deleted: false // נחזיר את הערך החדש
+                is_deleted: false
             };
         } catch (error) {
             console.error('Error creating post in model:', error);
@@ -60,17 +54,29 @@ class Post {
         }
     }
 
-    /**
-  * שיטה לקבלת כל הפוסטים (כולל פרטי משתמש, מיקום וקטגוריה אם קיימים).
-  * תומכת בפאג’ינציה עם limit ו־offset.
-  * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.
-  * @param {object} options - הגדרות שליפת פוסטים.
-  * @param {number} options.limit - מספר פריטים בעמוד.
-  * @param {number} options.offset - כמה פריטים לדלג (לפי עמוד).
-  * @returns {Promise<{items: Array<object>, totalCount: number}>}
-  */
-    static async getAll({ limit, offset }) {
-        let sql = `
+    static async getFilteredAndPaginated({ page = 1, limit = 6, userId, categoryId }) {
+        // להמיר ל־number
+        page = Number(page) || 1;
+        limit = Number(limit) || 6;
+
+        const offset = (page - 1) * limit;
+
+        const whereClauses = ['p.is_deleted = FALSE'];
+        const params = [];
+
+        if (userId) {
+            whereClauses.push('p.user_id = ?');
+            params.push(userId);
+        }
+
+        if (categoryId) {
+            whereClauses.push('p.category_id = ?');
+            params.push(categoryId);
+        }
+
+        const whereString = `WHERE ${whereClauses.join(' AND ')}`;
+
+        const sql = `
         SELECT
             SQL_CALC_FOUND_ROWS
             p.id,
@@ -87,90 +93,71 @@ class Post {
             l.id AS location_id,
             c.name AS category_name,
             c.id AS category_id
-        FROM
-            posts p
-        LEFT JOIN
-            users u ON p.user_id = u.firebase_uid
-        LEFT JOIN
-            locations l ON p.location_id = l.id
-        LEFT JOIN
-            categories c ON p.category_id = c.id
-        WHERE
-            p.is_deleted = FALSE
-        ORDER BY
-            p.created_at DESC
+        FROM posts p
+        LEFT JOIN users u ON p.user_id = u.firebase_uid
+        LEFT JOIN locations l ON p.location_id = l.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        ${whereString}
+        ORDER BY p.created_at DESC
+        LIMIT ? OFFSET ?
     `;
 
-        const params = [];
-        if (limit !== undefined && offset !== undefined) {
-            sql += ` LIMIT ? OFFSET ?`;
-            params.push(limit, offset);
+        const queryParams = [...params, limit, offset];
+
+        try {
+            const [rows] = await db.execute(sql, queryParams);
+            const [[{ total }]] = await db.execute(`SELECT FOUND_ROWS() AS total`);
+
+            return {
+                items: rows.map(row => ({
+                    ...row,
+                    images: safeJsonParseArray(row.images),
+                    created_at: row.created_at
+                        ? new Date(row.created_at).toISOString()
+                        : null
+                })),
+                totalCount: total
+            };
+        } catch (error) {
+            console.error('Error fetching filtered and paginated posts:', error);
+            throw error;
         }
-
-        const [rows] = await db.execute(sql, params);
-        const [[{ 'FOUND_ROWS()': totalCount }]] = await db.execute(`SELECT FOUND_ROWS()`);
-
-        return {
-            items: rows.map(row => ({
-                ...row,
-                images: safeJsonParseArray(row.images),
-                created_at: row.created_at ? new Date(row.created_at).toISOString() : null
-            })),
-            totalCount
-        };
     }
 
+
     /**
- * שיטה לקבלת פוסט לפי ID, תוך עדכון מונה צפיות (view_count).
- * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.
- * @param {number} id - מזהה הפוסט.
- * @returns {Promise<object|null>} - אובייקט הפוסט או null אם לא נמצא.
- */
+     * שיטה לקבלת פוסט לפי ID, תוך עדכון מונה צפיות (view_count).
+     * @param {number} id - מזהה הפוסט.
+     * @returns {Promise<object|null>} - אובייקט הפוסט או null אם לא נמצא.
+     */
     static async getById(id) {
         const connection = await db.getConnection();
         try {
             await connection.beginTransaction();
-
             const [rows] = await connection.execute(
                 `
-            SELECT
-                p.id,
-                p.title,
-                p.content,
-                p.images,
-                p.like_count,
-                p.comment_count,
-                p.created_at,
-                p.view_count, -- נוספה תמיכה בשדה צפיות
-                p.is_deleted,
-                u.name AS user_name,
-                p.user_id AS firebase_uid,
-                l.name AS location_name,
-                l.id AS location_id,
-                c.name AS category_name,
-                c.id AS category_id
-            FROM posts p
-            LEFT JOIN users u ON p.user_id = u.firebase_uid
-            LEFT JOIN locations l ON p.location_id = l.id
-            LEFT JOIN categories c ON p.category_id = c.id
-            WHERE p.id = ? AND p.is_deleted = FALSE
-            `,
+                SELECT
+                    p.id, p.title, p.content, p.images, p.like_count, p.comment_count, p.created_at, p.view_count, p.is_deleted,
+                    u.name AS user_name, p.user_id AS firebase_uid,
+                    l.name AS location_name, l.id AS location_id,
+                    c.name AS category_name, c.id AS category_id
+                FROM posts p
+                LEFT JOIN users u ON p.user_id = u.firebase_uid
+                LEFT JOIN locations l ON p.location_id = l.id
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE p.id = ? AND p.is_deleted = FALSE
+                `,
                 [id]
             );
-
             if (rows.length === 0) {
                 await connection.rollback();
                 return null;
             }
-
-            // הגדלת view_count
             await connection.execute(
                 `UPDATE posts SET view_count = view_count + 1 WHERE id = ?`,
                 [id]
             );
-
             await connection.commit();
-
             const post = rows[0];
             return {
                 ...post,
@@ -186,95 +173,6 @@ class Post {
         }
     }
 
-    static async getByUserId(userId) {
-        try {
-            const sql = `
-                SELECT
-                    p.id,
-                    p.title,
-                    p.content,
-                    p.images,
-                    p.like_count,
-                    p.comment_count,
-                    p.created_at,
-                    p.is_deleted,
-                    u.name AS user_name,
-                    p.user_id AS firebase_uid,
-                    l.name AS location_name,
-                    l.id AS location_id,
-                    c.name AS category_name,
-                    c.id AS category_id
-                FROM
-                    posts p
-                LEFT JOIN
-                    users u ON p.user_id = u.firebase_uid
-                LEFT JOIN
-                    locations l ON p.location_id = l.id
-                LEFT JOIN
-                    categories c ON p.category_id = c.id
-                WHERE
-                    p.user_id = ? AND p.is_deleted = FALSE
-                ORDER BY
-                    p.created_at DESC
-            `;
-            const [rows] = await db.execute(sql, [userId]);
-            return rows.map(row => ({
-                ...row,
-                images: safeJsonParseArray(row.images),
-                created_at: row.created_at ? new Date(row.created_at).toISOString() : null
-            }));
-        } catch (error) {
-            console.error('Error fetching posts by user ID:', error);
-            throw error;
-        }
-    }
-
-
-
-    // /**
-    //  * שיטה לקבלת פוסט לפי ID.
-    //  * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.
-    //  * @param {number} id - מזהה הפוסט.
-    //  * @returns {Promise<object|null>} - אובייקט הפוסט או null אם לא נמצא.
-    //  */
-    // static async getById(id) {
-    //     const sql = `
-    //         SELECT
-    //             p.id,
-    //             p.title,
-    //             p.content,
-    //             p.images,
-    //             p.like_count,
-    //             p.comment_count,
-    //             p.created_at,
-    //             p.is_deleted, -- הוספה: שדה is_deleted
-    //             u.name AS user_name,
-    //             p.user_id AS firebase_uid,
-    //             l.name AS location_name,
-    //             l.id AS location_id,
-    //             c.name AS category_name,
-    //             c.id AS category_id
-    //         FROM
-    //             posts p
-    //         LEFT JOIN
-    //             users u ON p.user_id = u.firebase_uid
-    //         LEFT JOIN
-    //             locations l ON p.location_id = l.id
-    //         LEFT JOIN
-    //             categories c ON p.category_id = c.id
-    //         WHERE p.id = ? AND p.is_deleted = FALSE -- רק פוסטים שאינם מחוקים
-    //     `;
-    //     const [rows] = await db.execute(sql, [id]);
-    //     if (rows[0]) {
-    //         return {
-    //             ...rows[0],
-    //             images: safeJsonParseArray(rows[0].images), // ודא/י שה-images מומר למערך
-    //             created_at: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : null // לוודא פורמט עקבי
-    //         };
-    //     }
-    //     return null;
-    // }
-
     /**
      * שיטה לעדכון פוסט קיים.
      * @param {number} id - מזהה הפוסט לעדכון.
@@ -286,18 +184,14 @@ class Post {
         const values = [];
         for (const key in postData) {
             if (postData.hasOwnProperty(key)) {
-                // ודא שלא ניתן לעדכן את user_id או created_at
-                if (key === 'user_id' || key === 'created_at' || key === 'like_count' || key === 'comment_count' || key === 'is_deleted') {
-                    continue; // דלג על שדות אלו
+                if (['user_id', 'created_at', 'like_count', 'comment_count', 'is_deleted'].includes(key)) {
+                    continue;
                 }
-
                 if (key === 'images') {
                     fields.push(`${key} = ?`);
-                    // אם images הוא null/undefined, נשמור מערך ריק. אחרת, נמיר ל-JSON
                     values.push(postData[key] === null || postData[key] === undefined ? JSON.stringify([]) : JSON.stringify(postData[key]));
                 } else if (key === 'location_id' || key === 'category_id') {
                     fields.push(`${key} = ?`);
-                    // מאפשר עדכון ל-NULL אם הערך הוא null או undefined במפורש
                     values.push(postData[key] === null ? null : postData[key]);
                 } else {
                     fields.push(`${key} = ?`);
@@ -309,16 +203,14 @@ class Post {
             console.log('No fields to update for post ID:', id);
             return 0;
         }
-
-        const sql = `UPDATE posts SET ${fields.join(', ')} WHERE id = ? AND is_deleted = FALSE`; // רק פוסטים שאינם מחוקים
+        const sql = `UPDATE posts SET ${fields.join(', ')} WHERE id = ? AND is_deleted = FALSE`;
         values.push(id);
         const [result] = await db.execute(sql, values);
         return result.affectedRows;
     }
 
     /**
-     * שיטה למחיקת פוסט.
-     * זוהי מחיקה פיזית (Hard Delete) - מיועדת רק לבעל הפוסט.
+     * מחיקה פיזית (Hard Delete) - מיועדת רק לבעל הפוסט.
      * @param {number} id - מזהה הפוסט למחיקה.
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
@@ -336,10 +228,9 @@ class Post {
      */
     static async isOwner(postId, userId) {
         try {
-            // הוספנו is_deleted = FALSE כדי לוודא שהפוסט לא מחוק
             const [rows] = await db.query('SELECT user_id FROM posts WHERE id = ? AND is_deleted = FALSE', [postId]);
             if (rows.length === 0) {
-                return false; // הפוסט לא נמצא או מחוק
+                return false;
             }
             return rows[0].user_id === userId;
         } catch (error) {
@@ -369,7 +260,6 @@ class Post {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async decrementLikeCount(postId, amount = 1) {
-        // לוודא ש-like_count לא יורד מתחת ל-0
         const sql = `UPDATE posts SET like_count = GREATEST(0, like_count - ?) WHERE id = ? AND is_deleted = FALSE`;
         const [result] = await db.execute(sql, [amount, postId]);
         console.log(`Decrementing like_count for post ID: ${postId}, amount: ${amount}`);
@@ -394,55 +284,9 @@ class Post {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async decrementCommentCount(postId) {
-        // לוודא ש-comment_count לא יורד מתחת ל-0
         const sql = `UPDATE posts SET comment_count = GREATEST(0, comment_count - 1) WHERE id = ? AND is_deleted = FALSE`;
         const [result] = await db.execute(sql, [postId]);
         return result.affectedRows;
-    }
-
-    /**
-     * שליפת פוסטים לפי מזהה קטגוריה.
-     * @param {number} categoryId - מזהה הקטגוריה.
-     * @returns {Promise<Array<object>>} - מערך של פוסטים התואמים לקטגוריה.
-     */
-    static async getByCategoryId(categoryId) {
-        const sql = `
-            SELECT
-                p.id,
-                p.title,
-                p.content,
-                p.images,
-                p.like_count,
-                p.comment_count,
-                p.created_at,
-                p.is_deleted, -- הוספה: שדה is_deleted
-                u.name AS user_name,
-                p.user_id AS firebase_uid,
-                l.name AS location_name,
-                l.id AS location_id,
-                c.name AS category_name,
-                c.id AS category_id
-            FROM
-                posts p
-            LEFT JOIN
-                users u ON p.user_id = u.firebase_uid
-            LEFT JOIN
-                locations l ON p.location_id = l.id
-            LEFT JOIN
-                categories c ON p.category_id = c.id
-            WHERE
-                p.category_id = ? AND p.is_deleted = FALSE -- רק פוסטים שאינם מחוקים
-            ORDER BY
-                p.created_at DESC
-        `;
-
-        const [rows] = await db.execute(sql, [categoryId]);
-
-        return rows.map(row => ({
-            ...row,
-            images: safeJsonParseArray(row.images),
-            created_at: row.created_at ? new Date(row.created_at).toISOString() : null
-        }));
     }
 
     /**
@@ -451,7 +295,7 @@ class Post {
      * @returns {Promise<number>} - מספר השורות שהושפעו.
      */
     static async softDelete(id) {
-        const sql = `UPDATE posts SET is_deleted = TRUE WHERE id = ? AND is_deleted = FALSE`; // וודא שרק פוסטים פעילים מסומנים כמחוקים
+        const sql = `UPDATE posts SET is_deleted = TRUE WHERE id = ? AND is_deleted = FALSE`;
         const [result] = await db.execute(sql, [id]);
         return result.affectedRows;
     }
@@ -464,6 +308,130 @@ class Post {
         return rows;
     };
 
+    /**
+     * שיטה לקבלת כל הפוסטים (כולל פרטי משתמש, מיקום וקטגוריה אם קיימים).
+     * תומכת בפאג'ינציה עם limit ו-offset.
+     * מטפלת בהמרה של שדה 'images' ממחרוזת JSON למערך.
+     * @param {object} options - הגדרות שליפת פוסטים.
+     * @param {number} options.limit - מספר פריטים בעמוד.
+     * @param {number} options.offset - כמה פריטים לדלג (לפי עמוד).
+     * @returns {Promise<{items: Array<object>, totalCount: number}>}
+     */
+    static async getAll({ limit, offset }) {
+        let sql = `
+        SELECT
+            SQL_CALC_FOUND_ROWS
+            p.id, p.title, p.content, p.images, p.like_count, p.comment_count, p.created_at, p.is_deleted,
+            u.name AS user_name, p.user_id AS firebase_uid,
+            l.name AS location_name, l.id AS location_id,
+            c.name AS category_name, c.id AS category_id
+        FROM posts p
+        LEFT JOIN users u ON p.user_id = u.firebase_uid
+        LEFT JOIN locations l ON p.location_id = l.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_deleted = FALSE
+        ORDER BY p.created_at DESC
+        `;
+        const params = [];
+        if (limit !== undefined && offset !== undefined) {
+            sql += ` LIMIT ? OFFSET ?`;
+            params.push(limit, offset);
+        }
+        const [rows] = await db.execute(sql, params);
+        const [[{ 'FOUND_ROWS()': totalCount }]] = await db.execute(`SELECT FOUND_ROWS()`);
+        return {
+            items: rows.map(row => ({
+                ...row,
+                images: safeJsonParseArray(row.images),
+                created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+            })),
+            totalCount
+        };
+    }
+
+    /**
+     * שליפת פוסטים לפי מזהה קטגוריה.
+     * @param {number} categoryId - מזהה הקטגוריה.
+     * @returns {Promise<Array<object>>} - מערך של פוסטים התואמים לקטגוריה.
+     */
+    static async getByCategoryId(categoryId) {
+        const sql = `
+            SELECT
+                p.id, p.title, p.content, p.images, p.like_count, p.comment_count, p.created_at, p.is_deleted,
+                u.name AS user_name, p.user_id AS firebase_uid,
+                l.name AS location_name, l.id AS location_id,
+                c.name AS category_name, c.id AS category_id
+            FROM posts p
+            LEFT JOIN users u ON p.user_id = u.firebase_uid
+            LEFT JOIN locations l ON p.location_id = l.id
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE p.category_id = ? AND p.is_deleted = FALSE
+            ORDER BY p.created_at DESC
+        `;
+        const [rows] = await db.execute(sql, [categoryId]);
+        return rows.map(row => ({
+            ...row,
+            images: safeJsonParseArray(row.images),
+            created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+        }));
+    }
+
+    /**
+     * שליפת פוסטים לפי מזהה משתמש.
+     * @param {string} userId - מזהה המשתמש.
+     * @returns {Promise<Array<object>>} - מערך של פוסטים התואמים למשתמש.
+     */
+    static async getByUserId(userId) {
+        try {
+            const sql = `
+                SELECT
+                    p.id, p.title, p.content, p.images, p.like_count, p.comment_count, p.created_at, p.is_deleted,
+                    u.name AS user_name, p.user_id AS firebase_uid,
+                    l.name AS location_name, l.id AS location_id,
+                    c.name AS category_name, c.id AS category_id
+                FROM posts p
+                LEFT JOIN users u ON p.user_id = u.firebase_uid
+                LEFT JOIN locations l ON p.location_id = l.id
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE p.user_id = ? AND p.is_deleted = FALSE
+                ORDER BY p.created_at DESC
+            `;
+            const [rows] = await db.execute(sql, [userId]);
+            return rows.map(row => ({
+                ...row,
+                images: safeJsonParseArray(row.images),
+                created_at: row.created_at ? new Date(row.created_at).toISOString() : null
+            }));
+        } catch (error) {
+            console.error('Error fetching posts by user ID:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * מעלה את מונה הצפיות ב-1.
+     * @param {string} id - מזהה הפוסט.
+     * @returns {Promise<number|null>} - ספירת הצפיות המעודכנת או null אם הפוסט לא נמצא.
+     */
+    static async incrementViewCount(id) {
+        try {
+            const [result] = await db.execute(
+                `UPDATE posts SET view_count = view_count + 1 WHERE id = ?`,
+                [id]
+            );
+            if (result.affectedRows === 0) {
+                return null;
+            }
+            const [rows] = await db.execute(
+                `SELECT view_count FROM posts WHERE id = ?`,
+                [id]
+            );
+            return rows[0] ? rows[0].view_count : null;
+        } catch (error) {
+            console.error('Error incrementing post view count:', error);
+            throw error;
+        }
+    }
 }
 
 module.exports = Post;

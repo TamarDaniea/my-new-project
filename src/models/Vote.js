@@ -130,6 +130,15 @@ const Vote = {
         return rows;
     },
 
+
+    getLikesByItem: async (item_type, item_id) => {
+        const [rows] = await db.query(
+            'SELECT * FROM votes WHERE item_type = ? AND item_id = ? AND value = 1',
+            [item_type, item_id]
+        );
+        return rows; // מחזיר מערך של כל הלייקים
+    },
+
     // פונקציה לקבלת דירוג קיים עבור משתמש ופריט ספציפיים
     getByUserItem: async (user_id, item_type, item_id) => {
         const [rows] = await db.query(
